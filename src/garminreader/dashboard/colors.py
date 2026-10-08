@@ -4,10 +4,10 @@ import streamlit as st
 
 
 def _is_dark() -> bool:
-    return st.get_option("theme.base") == "dark"
+    return bool(st.get_option("theme.base") == "dark")
 
 
-# Fixed categorical order — never reassigned/cycled per chart.
+# Fixed categorical order: never reassigned/cycled per chart.
 CATEGORICAL_LIGHT = ["#2a78d6", "#1baf7a", "#eda100", "#008300", "#4a3aa7", "#e34948"]
 CATEGORICAL_DARK = ["#3987e5", "#199e70", "#c98500", "#008300", "#9085e9", "#e66767"]
 
@@ -15,7 +15,7 @@ CATEGORICAL_DARK = ["#3987e5", "#199e70", "#c98500", "#008300", "#9085e9", "#e66
 SEQUENTIAL_LIGHT = "#2a78d6"
 SEQUENTIAL_DARK = "#3987e5"
 
-# Reserved status colors — never reused as a categorical series color.
+# Reserved status colors: never reused as a categorical series color.
 STATUS = {
     "good": "#0ca30c",
     "warning": "#fab219",

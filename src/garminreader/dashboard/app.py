@@ -1,19 +1,18 @@
-"""Garmin Insights — a Streamlit app that logs into Garmin Connect and turns
-your activity + recovery data into insights, explanations, and a daily
-training suggestion."""
+"""Garmin Insights: a Streamlit dashboard on the dbt marts that turns your
+activity and recovery data into insights, explanations, and a daily training
+suggestion. Run with `uv run dashboard`; data comes from `uv run ingest garmin`
+followed by `uv run transform`."""
 
 import logging
 from datetime import date, timedelta
+from typing import Any
 
 import streamlit as st
 
-from garminreader import config
 from garminreader.dashboard import ai_insights as ai
-from garminreader.dashboard import charts
-from garminreader.dashboard import garmin_data as gd
+from garminreader.dashboard import charts, queries, refresh
 from garminreader.dashboard import insights as ins
 from garminreader.dashboard import training_suggestions as ts
-from garminreader.ingest.sources.garmin import auth as gc
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -28,142 +27,55 @@ BANNER_BY_LEVEL = {
     "moderate": st.info,
     "hard": st.success,
 }
+SLEEP_STAGES = ["deep_sleep_seconds", "light_sleep_seconds", "rem_sleep_seconds", "awake_seconds"]
+
+
+def fmt(value: Any, suffix: str = "", decimals: int = 0) -> str:
+    if value is None:
+        return "–"
+    return f"{value:.{decimals}f}{suffix}"
+
 
 # --------------------------------------------------------------------------
-# Session state / auth
-# --------------------------------------------------------------------------
-
-st.session_state.setdefault("api", None)
-st.session_state.setdefault("display_name", None)
-st.session_state.setdefault("pending_mfa_api", None)
-st.session_state.setdefault("resume_attempted", False)
-
-if not st.session_state.api and not st.session_state.resume_attempted:
-    st.session_state.resume_attempted = True
-    resumed = gc.try_resume_session()
-    if resumed is not None:
-        st.session_state.api = resumed
-        st.session_state.display_name = resumed.display_name
-
-
-def render_login() -> None:
-    st.title("🏃 Garmin Insights")
-    st.caption(
-        "Connect your Garmin account to see insights, explanations, and training suggestions built from your own data."
-    )
-
-    if st.session_state.pending_mfa_api is not None:
-        st.subheader("Two-factor verification")
-        with st.form("mfa_form"):
-            code = st.text_input("Enter the verification code Garmin sent you")
-            submitted = st.form_submit_button("Verify")
-        if submitted:
-            try:
-                gc.complete_mfa(st.session_state.pending_mfa_api, code)
-                st.session_state.api = st.session_state.pending_mfa_api
-                st.session_state.display_name = st.session_state.api.display_name
-                st.session_state.pending_mfa_api = None
-                st.rerun()
-            except Exception as e:
-                st.error(f"Verification failed: {e}")
-        return
-
-    with st.form("login_form"):
-        email = st.text_input("Garmin email", value=config.optional_env("GARMIN_EMAIL") or "")
-        password = st.text_input("Garmin password", type="password", value=config.optional_env("GARMIN_PASSWORD") or "")
-        submitted = st.form_submit_button("Log in")
-
-    if submitted:
-        if not email or not password:
-            st.error("Enter both email and password.")
-        else:
-            try:
-                with st.spinner("Logging in..."):
-                    api, status = gc.begin_login(email, password)
-                if status == "mfa":
-                    st.session_state.pending_mfa_api = api
-                    st.rerun()
-                else:
-                    st.session_state.api = api
-                    st.session_state.display_name = api.display_name
-                    st.rerun()
-            except gc.GarminConnectAuthenticationError:
-                st.error("Login failed — check your email and password.")
-            except Exception as e:
-                st.error(f"Login failed: {e}")
-
-    st.info(
-        "Your credentials go directly to Garmin and aren't stored by this app. "
-        "A session token is cached locally in `.garmin_tokens/` so you won't "
-        "need to log in again on this machine. To avoid retyping your email/"
-        "password on the first login, set `GARMIN_EMAIL` and `GARMIN_PASSWORD` "
-        "in `.env` (gitignored) to prefill this form."
-    )
-
-
-if not st.session_state.api:
-    render_login()
-    st.stop()
-
-api = st.session_state.api
-display_name = st.session_state.display_name
-
-# --------------------------------------------------------------------------
-# Sidebar: account + range controls
+# Sidebar: range controls and pipeline refresh
 # --------------------------------------------------------------------------
 
 with st.sidebar:
-    st.markdown(f"**Logged in as** {api.full_name or display_name}")
-    if st.button("Log out"):
-        gc.logout()
-        st.session_state.api = None
-        st.session_state.display_name = None
-        st.rerun()
-
-    st.divider()
     range_choice = st.selectbox("Date range", ["Last 7 days", "Last 30 days", "Last 90 days"], index=1)
     n_days = {"Last 7 days": 7, "Last 30 days": 30, "Last 90 days": 90}[range_choice]
     end_date = date.today()
     start_date = end_date - timedelta(days=n_days - 1)
 
-    if st.button("Refresh data", help="Re-fetch today, yesterday and activities."):
-        gd.clear_recent_cache()
-        st.rerun()
-    if st.button("Reload full history", help="Re-fetch every day in the range. Slow."):
-        st.cache_data.clear()
-        st.rerun()
-    st.caption(
-        f"Today and yesterday refresh automatically every {gd.LIVE_TTL // 60} "
-        "minutes. Older days are cached for a week."
-    )
+    st.divider()
+    if st.button("Refresh from Garmin", help="Runs `ingest garmin` and `transform build`."):
+        with st.spinner("Fetching from Garmin and rebuilding models..."):
+            try:
+                refresh.run_pipeline()
+                st.rerun()
+            except refresh.RefreshFailed as exc:
+                st.error("Refresh failed. Details below and in the terminal log.")
+                st.code(str(exc), language="text")
 
 # --------------------------------------------------------------------------
 # Data loading
 # --------------------------------------------------------------------------
 
-fetch_errors = gd.FetchErrors()
-progress_bar = st.progress(0.0, text="Loading Garmin data...")
-daily_df = gd.build_daily_dataframe(
-    api,
-    display_name,
-    start_date,
-    end_date,
-    fetch_errors,
-    progress=lambda p: progress_bar.progress(p, text=f"Loading Garmin data... {int(p * 100)}%"),
-)
-progress_bar.empty()
-
-activities_df = gd.get_activities(api, display_name, start_date, end_date, fetch_errors)
-current_status = gd.get_current_status(api, display_name, end_date, fetch_errors)
-
-if fetch_errors.failures:
-    st.warning(
-        f"{len(fetch_errors.failures)} Garmin requests failed, so some values may "
-        "be missing. Failed requests are not cached: click Refresh data to retry. "
-        "Details are in the terminal log."
+try:
+    daily_df = queries.daily_health(start_date, end_date)
+    activities_df = queries.activities(start_date, end_date)
+    current_status = queries.current_status()
+    last_loaded = queries.last_loaded_at()
+except queries.WarehouseNotReady:
+    st.title("🏃 Garmin Insights")
+    st.info(
+        "No data yet. Set `GARMIN_EMAIL` and `GARMIN_PASSWORD` in `.env`, then run "
+        "`uv run ingest garmin` and `uv run transform` (or click Refresh from Garmin)."
     )
-    with st.expander("Failed requests"):
-        st.write(fetch_errors.failures)
+    st.stop()
+
+with st.sidebar:
+    if last_loaded is not None:
+        st.caption(f"Data last fetched {last_loaded:%Y-%m-%d %H:%M} UTC.")
 
 tab_overview, tab_activities, tab_recovery, tab_insights, tab_suggestions = st.tabs(
     ["Overview", "Activities", "Recovery", "Insights", "Training Suggestions"]
@@ -176,11 +88,6 @@ tab_overview, tab_activities, tab_recovery, tab_insights, tab_suggestions = st.t
 with tab_overview:
     suggestion = ts.generate_suggestion(current_status, daily_df)
     BANNER_BY_LEVEL[suggestion.level](f"**{suggestion.headline}**")
-
-    def fmt(value, suffix="", decimals=0):
-        if value is None:
-            return "–"
-        return f"{value:.{decimals}f}{suffix}"
 
     last_sleep_score = None
     if not daily_df.empty and daily_df["sleep_score"].notna().any():
@@ -224,18 +131,18 @@ with tab_activities:
                 "training_load": "Training Load",
             }
         )
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(display_df, width="stretch", hide_index=True)
 
         weekly = activities_df.dropna(subset=["date"]).copy()
         weekly["week"] = weekly["date"].dt.to_period("W").apply(lambda p: p.start_time)
-        weekly_volume = weekly.groupby("week", as_index=False)["distance_km"].sum()
+        weekly_volume = weekly.groupby("week", as_index=False).agg(distance_km=("distance_km", "sum"))
 
         col_a, col_b = st.columns(2)
         with col_a:
             st.subheader("Weekly distance")
             st.plotly_chart(
                 charts.bar_chart(weekly_volume, "week", "distance_km", y_title="km"),
-                use_container_width=True,
+                width="stretch",
             )
         with col_b:
             st.subheader("Average heart rate per activity")
@@ -245,7 +152,7 @@ with tab_activities:
             else:
                 st.plotly_chart(
                     charts.line_chart(hr_df, "start", "avg_hr", y_title="bpm"),
-                    use_container_width=True,
+                    width="stretch",
                 )
 
 # --------------------------------------------------------------------------
@@ -263,7 +170,7 @@ with tab_recovery:
             if not rhr_df.empty:
                 st.plotly_chart(
                     charts.line_chart(rhr_df, "date", "resting_hr", y_title="bpm"),
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 st.info("No resting heart rate data available for this range.")
@@ -273,7 +180,7 @@ with tab_recovery:
             if not sleep_df.empty:
                 st.plotly_chart(
                     charts.line_chart(sleep_df, "date", "sleep_score", y_title="score / 100"),
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 st.info("No sleep score data available for this range.")
@@ -285,7 +192,7 @@ with tab_recovery:
             if not hrv_df.empty:
                 st.plotly_chart(
                     charts.line_chart(hrv_df, "date", "hrv_last_night_avg", y_title="ms"),
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 st.info("No HRV data available for this range.")
@@ -295,7 +202,7 @@ with tab_recovery:
             if not stress_df.empty:
                 st.plotly_chart(
                     charts.line_chart(stress_df, "date", "avg_stress", y_title="stress / 100"),
-                    use_container_width=True,
+                    width="stretch",
                 )
 
         st.subheader("Body Battery range")
@@ -308,16 +215,14 @@ with tab_recovery:
                     {"body_battery_highest": "Highest", "body_battery_lowest": "Lowest"},
                     y_title="/ 100",
                 ),
-                use_container_width=True,
+                width="stretch",
             )
 
         st.subheader("Sleep stages")
-        stage_df = daily_df.dropna(
-            subset=["deep_sleep_seconds", "light_sleep_seconds", "rem_sleep_seconds", "awake_seconds"]
-        ).copy()
+        stage_df = daily_df.dropna(subset=SLEEP_STAGES).copy()
         if not stage_df.empty:
-            for col in ["deep_sleep_seconds", "light_sleep_seconds", "rem_sleep_seconds", "awake_seconds"]:
-                stage_df[col.replace("_seconds", "_hours")] = stage_df[col] / 3600
+            for stage in SLEEP_STAGES:
+                stage_df[stage.replace("_seconds", "_hours")] = stage_df[stage] / 3600
             st.plotly_chart(
                 charts.stacked_area_chart(
                     stage_df,
@@ -330,7 +235,7 @@ with tab_recovery:
                     },
                     y_title="hours",
                 ),
-                use_container_width=True,
+                width="stretch",
             )
         else:
             st.info("No detailed sleep stage data available for this range.")
@@ -342,7 +247,7 @@ with tab_recovery:
 with tab_insights:
     all_insights = ins.build_all_insights(daily_df, activities_df, current_status)
     if not all_insights:
-        st.info("Not enough data yet to generate insights — try a longer date range.")
+        st.info("Not enough data yet to generate insights; try a longer date range.")
 
     st.subheader("🤖 AI Coach")
     if not ai.available():
@@ -400,17 +305,18 @@ with tab_suggestions:
         if st.button("Generate 7-day plan"):
             with st.spinner("Asking Claude to build your week..."):
                 try:
-                    plan = ai.generate_training_plan(daily_df, activities_df, current_status, date.today())
-                    st.session_state["ai_training_plan"] = plan
+                    st.session_state["ai_training_plan"] = ai.generate_training_plan(
+                        daily_df, activities_df, current_status, date.today()
+                    )
                 except Exception as e:
                     st.error(f"Plan generation failed: {e}")
 
-        plan = st.session_state.get("ai_training_plan")
+        plan: ai.TrainingPlan | None = st.session_state.get("ai_training_plan")
         if plan:
             st.write(plan.summary)
             cols = st.columns(7)
-            for col, day in zip(cols, plan.days, strict=False):
-                with col, st.container(border=True):
+            for day_col, day in zip(cols, plan.days, strict=False):
+                with day_col, st.container(border=True):
                     st.markdown(f"**{day.day_of_week[:3]}**")
                     st.caption(day.date)
                     st.markdown(f"{INTENSITY_ICON.get(day.intensity.lower(), '⚪')} **{day.intensity.title()}**")
@@ -418,10 +324,9 @@ with tab_suggestions:
                     if day.duration_min:
                         st.caption(f"{day.duration_min} min")
             for day in plan.days:
-                with st.expander(f"{day.day_of_week} {day.date} — {day.focus}"):
+                with st.expander(f"{day.day_of_week} {day.date}: {day.focus}"):
                     st.write(day.details)
                     st.caption(f"Why: {day.rationale}")
             st.caption(
-                "AI-generated from your recent training and recovery data — "
-                "not medical or professional coaching advice."
+                "AI-generated from your recent training and recovery data, not medical or professional coaching advice."
             )

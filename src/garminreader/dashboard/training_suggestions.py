@@ -1,8 +1,9 @@
 """Rule-based training recommendation. Every rule is deliberately simple and
-transparent — each one contributes a named, explained reason — rather than a
+transparent (each one contributes a named, explained reason) rather than a
 black-box score, so the suggestion can be trusted and second-guessed."""
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import pandas as pd
 
@@ -11,7 +12,7 @@ LEVELS = ["rest", "easy", "moderate", "hard"]
 PLAN_BY_LEVEL = {
     "rest": [
         "Full rest day, or gentle mobility/walking only.",
-        "Prioritize sleep tonight — aim for a consistent bed time.",
+        "Prioritize sleep tonight; aim for a consistent bed time.",
     ],
     "easy": [
         "Easy Zone 1-2 session, 20-40 min (easy jog, spin, or swim).",
@@ -46,7 +47,7 @@ def _level_from_score(score: int) -> str:
     return "hard"
 
 
-def generate_suggestion(current_status: dict, daily_df: pd.DataFrame) -> Suggestion:
+def generate_suggestion(current_status: dict[str, Any], daily_df: pd.DataFrame) -> Suggestion:
     score = 100
     reasons: list[str] = []
 
@@ -65,7 +66,7 @@ def generate_suggestion(current_status: dict, daily_df: pd.DataFrame) -> Suggest
             score -= 20
             reasons.append(f"Training Readiness is moderate ({readiness_score}/100), suggesting only partial recovery.")
         elif readiness_score >= 75:
-            reasons.append(f"Training Readiness is high ({readiness_score}/100) — you're well recovered.")
+            reasons.append(f"Training Readiness is high ({readiness_score}/100): you're well recovered.")
 
     if not daily_df.empty:
         last = daily_df.dropna(subset=["hrv_status"]).sort_values("date")
@@ -94,11 +95,11 @@ def generate_suggestion(current_status: dict, daily_df: pd.DataFrame) -> Suggest
             reasons.append(
                 f"Acute:chronic workload ratio is high ({acwr:.2f}), meaning "
                 "recent training load has climbed sharply above your usual "
-                "load — a known injury-risk pattern."
+                "load, a known injury-risk pattern."
             )
         elif acwr < 0.8:
             reasons.append(
-                f"Acute:chronic workload ratio is low ({acwr:.2f}) — recent "
+                f"Acute:chronic workload ratio is low ({acwr:.2f}): recent "
                 "load is below your usual, so there's room to build volume "
                 "if you're feeling good."
             )
@@ -106,10 +107,10 @@ def generate_suggestion(current_status: dict, daily_df: pd.DataFrame) -> Suggest
     training_status = str(current_status.get("training_status") or "").upper()
     if training_status == "OVERREACHING":
         score -= 20
-        reasons.append("Garmin's training status is Overreaching — recent load is outpacing recovery.")
+        reasons.append("Garmin's training status is Overreaching: recent load is outpacing recovery.")
     elif training_status == "DETRAINING":
         reasons.append(
-            "Garmin's training status is Detraining — consistency has dropped and fitness may start slipping."
+            "Garmin's training status is Detraining: consistency has dropped and fitness may start slipping."
         )
     elif training_status in {"PRODUCTIVE", "PEAKING"}:
         reasons.append(f"Garmin's training status is {training_status.title()}.")
@@ -123,13 +124,13 @@ def generate_suggestion(current_status: dict, daily_df: pd.DataFrame) -> Suggest
     level = _level_from_score(score)
 
     headline = {
-        "rest": "Take it easy today — your body is asking for recovery.",
+        "rest": "Take it easy today; your body is asking for recovery.",
         "easy": "Keep today light. Save harder efforts for when you're more recovered.",
         "moderate": "Good to train, but hold back from maximal efforts today.",
-        "hard": "You're well recovered — green light for a hard session.",
+        "hard": "You're well recovered: green light for a hard session.",
     }[level]
 
     if not reasons:
-        reasons.append("No red flags in your recent recovery data — recommendation is based on overall readiness.")
+        reasons.append("No red flags in your recent recovery data; recommendation is based on overall readiness.")
 
     return Suggestion(level=level, headline=headline, reasons=reasons, plan=PLAN_BY_LEVEL[level])

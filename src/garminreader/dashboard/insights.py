@@ -2,6 +2,7 @@
 metric means, what changed, and what that change typically implies."""
 
 from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
 
@@ -113,13 +114,13 @@ def hrv_insight(df: pd.DataFrame) -> Insight | None:
     if direction == "down":
         finding = (
             f"Your HRV averaged {r_mean:.0f} ms recently versus a {b_mean:.0f} ms "
-            f"baseline — a downward shift, which often coincides with fatigue "
+            f"baseline: a downward shift, which often coincides with fatigue "
             f"or incomplete recovery.{status_txt}"
         )
     elif direction == "up":
         finding = (
             f"Your HRV averaged {r_mean:.0f} ms recently versus a {b_mean:.0f} ms "
-            f"baseline — trending up, which usually reflects good adaptation "
+            f"baseline: trending up, which usually reflects good adaptation "
             f"and recovery.{status_txt}"
         )
     else:
@@ -210,7 +211,7 @@ def training_volume_insight(activities_df: pd.DataFrame) -> Insight | None:
     )
 
 
-def vo2max_insight(current_status: dict) -> Insight | None:
+def vo2max_insight(current_status: dict[str, Any]) -> Insight | None:
     vo2 = current_status.get("vo2max")
     if not vo2:
         return None
@@ -218,7 +219,7 @@ def vo2max_insight(current_status: dict) -> Insight | None:
         title="VO2 Max",
         explanation=(
             "VO2 max estimates the maximum amount of oxygen your body can use "
-            "during exercise — the single best proxy for aerobic fitness. It "
+            "during exercise, the single best proxy for aerobic fitness. It "
             "moves slowly, over weeks to months of consistent training."
         ),
         finding=f"Garmin currently estimates your VO2 max at {vo2:.1f}.",
@@ -226,7 +227,9 @@ def vo2max_insight(current_status: dict) -> Insight | None:
     )
 
 
-def build_all_insights(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict) -> list[Insight]:
+def build_all_insights(
+    daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict[str, Any]
+) -> list[Insight]:
     candidates = [
         resting_hr_insight(daily_df),
         sleep_insight(daily_df),

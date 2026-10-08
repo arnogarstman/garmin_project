@@ -55,7 +55,7 @@ files = ["src", "tests"]
 module = ["garminconnect.*", "plotly.*", "dbt.*"]
 ignore_missing_imports = true
 
-# TEMPORARY: legacy dashboard code is typed when it moves onto dbt marts.
+# TEMPORARY: legacy live-API modules, removed once freshness moves to dbt.
 [[tool.mypy.overrides]]
-module = ["garminreader.dashboard.*"]
+module = ["garminreader.dashboard.garmin_data", "garminreader.dashboard.freshness"]
 ignore_errors = true

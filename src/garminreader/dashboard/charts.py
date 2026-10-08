@@ -2,6 +2,7 @@
 fixed categorical color order, thin lines, and a hover tooltip on every mark
 per the project's chart style guide."""
 
+import pandas as pd
 import plotly.graph_objects as go
 
 from garminreader.dashboard import colors
@@ -28,7 +29,7 @@ def _layout(fig: go.Figure, y_title: str = "") -> go.Figure:
     return fig
 
 
-def line_chart(df, x: str, y: str, y_title: str = "", hover_suffix: str = "") -> go.Figure:
+def line_chart(df: pd.DataFrame, x: str, y: str, y_title: str = "", hover_suffix: str = "") -> go.Figure:
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -42,7 +43,7 @@ def line_chart(df, x: str, y: str, y_title: str = "", hover_suffix: str = "") ->
     return _layout(fig, y_title)
 
 
-def multi_line_chart(df, x: str, series: dict[str, str], y_title: str = "") -> go.Figure:
+def multi_line_chart(df: pd.DataFrame, x: str, series: dict[str, str], y_title: str = "") -> go.Figure:
     """series: {column_name: display_label}, colored in fixed categorical order."""
     fig = go.Figure()
     palette = colors.categorical()
@@ -60,7 +61,7 @@ def multi_line_chart(df, x: str, series: dict[str, str], y_title: str = "") -> g
     return _layout(fig, y_title)
 
 
-def stacked_area_chart(df, x: str, series: dict[str, str], y_title: str = "") -> go.Figure:
+def stacked_area_chart(df: pd.DataFrame, x: str, series: dict[str, str], y_title: str = "") -> go.Figure:
     fig = go.Figure()
     palette = colors.categorical()
     for i, (col, label) in enumerate(series.items()):
@@ -78,7 +79,7 @@ def stacked_area_chart(df, x: str, series: dict[str, str], y_title: str = "") ->
     return _layout(fig, y_title)
 
 
-def bar_chart(df, x: str, y: str, y_title: str = "") -> go.Figure:
+def bar_chart(df: pd.DataFrame, x: str, y: str, y_title: str = "") -> go.Figure:
     fig = go.Figure()
     fig.add_trace(
         go.Bar(

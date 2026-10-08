@@ -4,6 +4,7 @@ snapshot, and does its own trend/correlation analysis rather than just
 restating the rule-based findings in `insights.py`."""
 
 from datetime import date, timedelta
+from typing import Any
 
 import anthropic
 import pandas as pd
@@ -16,7 +17,7 @@ MODEL = "claude-opus-4-8"
 
 SYSTEM_PROMPT = """You are an exercise physiologist reviewing one athlete's \
 raw Garmin data: a daily recovery/wellness table, an activity log, and a \
-latest-status snapshot. All of it comes directly from their device — treat \
+latest-status snapshot. All of it comes directly from their device, so treat \
 every number as real and accurate.
 
 Analyze trends and correlations yourself: look at how resting heart rate, \
@@ -47,7 +48,7 @@ def _csv(df: pd.DataFrame) -> str:
     return df.to_csv(index=False)
 
 
-def _build_context(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict) -> str:
+def _build_context(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict[str, Any]) -> str:
     parts = [
         "## Daily recovery/wellness metrics (one row per day)",
         _csv(daily_df.sort_values("date")),
@@ -77,7 +78,7 @@ def _build_context(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_
 
 
 @st.cache_data(ttl=15 * 60, show_spinner=False)
-def generate_narrative(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict) -> str:
+def generate_narrative(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict[str, Any]) -> str:
     api_key = _api_key()
     if not api_key:
         raise RuntimeError("No Anthropic API key configured.")
@@ -106,14 +107,14 @@ accurate.
 
 Base the plan on their actual recent training load, recovery trends (HRV, \
 sleep, resting heart rate, stress, body battery), and the sport(s) they \
-actually do (infer this from the activity log — don't invent a sport they \
+actually do (infer this from the activity log; don't invent a sport they \
 don't do). Vary intensity across the week in a way that responds to their \
-current recovery state — don't just repeat the same session every day, and \
+current recovery state; don't just repeat the same session every day, and \
 don't prescribe hard days back to back unless their data supports it. \
 Build in at least one rest or easy day if their recent training load or \
 recovery signals are trending down.
 
-For each of the 7 days, give a specific, actionable session — not vague \
+For each of the 7 days, give a specific, actionable session, not vague \
 advice like "listen to your body." "Rest" is a valid and often correct \
 session. Tie the rationale for each day to specific numbers from the data \
 you were given.
@@ -139,7 +140,7 @@ class TrainingPlan(BaseModel):
 
 @st.cache_data(ttl=15 * 60, show_spinner=False)
 def generate_training_plan(
-    daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict, start: date
+    daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict[str, Any], start: date
 ) -> TrainingPlan:
     api_key = _api_key()
     if not api_key:
@@ -158,4 +159,6 @@ def generate_training_plan(
         messages=[{"role": "user", "content": context}],
         output_format=TrainingPlan,
     )
+    if response.parsed_output is None:
+        raise RuntimeError("Claude returned no parseable training plan.")
     return response.parsed_output
