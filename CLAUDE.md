@@ -32,7 +32,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 
 ## Commands
 
-- `uv run ingest garmin [--since YYYY-MM-DD]`: without `--since`, resumes from the last load minus 2 days.
+- `uv run ingest garmin [--since YYYY-MM-DD]`: without `--since`, resumes from the last load minus 1 day.
 - `uv run transform [dbt args]`: dbt against the configured warehouse; defaults to `build`.
 - `uv run dashboard`
 - Checks: `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest`

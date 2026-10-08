@@ -1,11 +1,10 @@
--- Each run stores the activity list for its date range; overlapping runs
--- repeat activities, so keep the newest copy of each.
+-- One raw record per activity version; keep the newest.
 with activities as (
     select
-        loaded_at at time zone 'UTC' as loaded_at_utc,
-        unnest(payload::json []) as activity
+        payload as activity,
+        loaded_at at time zone 'UTC' as loaded_at_utc
     from {{ source('garmin', 'payloads') }}
-    where endpoint = 'activities'
+    where endpoint = 'activity'
 )
 
 select

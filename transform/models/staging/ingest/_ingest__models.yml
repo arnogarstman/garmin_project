@@ -1,0 +1,8 @@
+version: 2
+
+models:
+  - name: stg_ingest__loads
+    description: One row per successful ingest run, including runs that found nothing new.
+    columns:
+      - name: load_id
+        data_tests: [unique, not_null]

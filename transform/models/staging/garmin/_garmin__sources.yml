@@ -4,14 +4,10 @@ sources:
   - name: garmin
     description: Raw Garmin Connect API responses, one row per call, landed by `uv run ingest garmin`.
     schema: raw
-    config:
-      loaded_at_field: loaded_at
-      freshness:
-        warn_after: {count: 24, period: hour}
-        error_after: {count: 72, period: hour}
     tables:
       - name: payloads
         identifier: garmin
+        description: Append-only; a row is written only when its payload is new or changed.
         columns:
           - name: endpoint
             description: Logical endpoint name set by the source, e.g. sleep or activities.
@@ -19,8 +15,20 @@ sources:
               - not_null
               - accepted_values:
                   arguments:
-                    values: [daily_summary, sleep, hrv, training_readiness, training_status, activities, device_last_used]
+                    values: [daily_summary, sleep, hrv, training_readiness, training_status, activity, device_last_used]
           - name: params
-            description: Request parameters; per-day endpoints carry {"date"}.
+            description: Request parameters; per-day endpoints carry {"date"}, activities {"activity_id"}.
           - name: payload
             description: The API response, untouched.
+
+  - name: ingest
+    description: Ingest run log written by the loader, one row per successful run per source.
+    schema: raw
+    tables:
+      - name: loads
+        identifier: _loads
+        config:
+          loaded_at_field: loaded_at
+          freshness:
+            warn_after: {count: 24, period: hour}
+            error_after: {count: 72, period: hour}

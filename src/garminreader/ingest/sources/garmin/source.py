@@ -1,8 +1,10 @@
 """Garmin Connect source: one raw record per API call, payload untouched.
 
 Per-day endpoints are fetched for every day in [since, today]. Activities come
-from one range query (garminconnect pages through it internally), and the
-device snapshot is taken once per run as a freshness signal.
+from one range query (garminconnect pages through it internally) and are
+stored one record per activity, keyed by activity_id, so an activity seen
+again in a later window is recognised as unchanged. The device snapshot is
+taken once per run as a freshness signal.
 """
 
 import logging
@@ -37,6 +39,7 @@ DEFAULT_LOOKBACK_DAYS = 30
 MAX_ATTEMPTS = 4
 BACKOFF_SECONDS = 5.0
 RETRYABLE = (GarminConnectConnectionError, GarminConnectTooManyRequestsError)
+_NOT_FOUND = object()
 
 
 class GarminSource:
@@ -61,11 +64,13 @@ class GarminSource:
 
         api = self._connect()
         yield from self._call("device_last_used", api.get_device_last_used, {})
-        yield from self._call(
+        activities = self._fetch(
             "activities",
             partial(api.get_activities_by_date, start.isoformat(), end.isoformat()),
             {"start_date": start.isoformat(), "end_date": end.isoformat()},
         )
+        for activity in activities if isinstance(activities, list) else []:
+            yield RawRecord("activity", activity, {"activity_id": activity["activityId"]})
         day = start
         while day <= end:
             for endpoint, method in DAY_ENDPOINTS.items():
@@ -74,8 +79,14 @@ class GarminSource:
             day += timedelta(days=1)
 
     def _call(self, endpoint: str, fetch: Callable[[], Any], params: dict[str, Any]) -> Iterator[RawRecord]:
-        """Yield the response as one record. Retries transient failures with
-        exponential backoff; a 404 is logged and skipped so one missing day
+        """Yield the response as one record (nothing if it was a 404)."""
+        payload = self._fetch(endpoint, fetch, params)
+        if payload is not _NOT_FOUND:
+            yield RawRecord(endpoint, payload, params)
+
+    def _fetch(self, endpoint: str, fetch: Callable[[], Any], params: dict[str, Any]) -> Any:
+        """Return the response. Retries transient failures with exponential
+        backoff; a 404 is logged and returned as _NOT_FOUND so one missing day
         does not abort a backfill. Anything else fails the run, which leaves
         the warehouse untouched because loads are all-or-nothing."""
         for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -83,7 +94,7 @@ class GarminSource:
                 payload = fetch()
             except GarminConnectNotFoundError:
                 logger.warning("Garmin %s %s: not found, skipped", endpoint, params)
-                return
+                return _NOT_FOUND
             except RETRYABLE as exc:
                 if attempt == MAX_ATTEMPTS:
                     raise
@@ -99,5 +110,5 @@ class GarminSource:
                 )
                 self._sleep(delay)
             else:
-                yield RawRecord(endpoint, payload, params)
-                return
+                return payload
+        raise AssertionError("unreachable")

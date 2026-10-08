@@ -78,8 +78,8 @@ def current_status() -> dict[str, Any]:
 
 
 def last_loaded_at() -> datetime | None:
-    """When raw Garmin data last landed, as naive UTC."""
-    df = _query("select max(loaded_at) at time zone 'UTC' as loaded_at from raw.garmin")
+    """When the last successful Garmin ingest ran, as naive UTC."""
+    df = _query("select max(loaded_at) at time zone 'UTC' as loaded_at from raw._loads where source = 'garmin'")
     value = df["loaded_at"].iloc[0]
     return None if pd.isna(value) else pd.Timestamp(value).to_pydatetime()
 

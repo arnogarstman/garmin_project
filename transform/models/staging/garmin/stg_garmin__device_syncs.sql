@@ -1,4 +1,4 @@
--- One device snapshot per ingest run: when the watch last uploaded to Garmin.
+-- Device snapshots, stored only when they change: when the watch last uploaded to Garmin.
 select
     payload ->> '$.lastUsedDeviceName' as device_name,
     make_timestamp((payload ->> '$.lastUsedDeviceUploadTime')::bigint * 1000) as last_uploaded_at_utc,

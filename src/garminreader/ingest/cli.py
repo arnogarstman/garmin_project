@@ -15,7 +15,7 @@ from garminreader.ingest.sources import SOURCES
 
 logger = logging.getLogger("ingest")
 
-REFETCH_DAYS = 2
+REFETCH_DAYS = 1
 
 
 def main() -> None:

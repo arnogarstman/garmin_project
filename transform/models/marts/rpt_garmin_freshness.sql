@@ -6,7 +6,8 @@
 -- confirmed should not look fine. Activities have no threshold (rest days).
 with signals as (
     select 'last ingest' as signal, max(loaded_at_utc) as observed_at_utc, 24 as stale_after_hours
-    from {{ ref('stg_garmin__device_syncs') }}
+    from {{ ref('stg_ingest__loads') }}
+    where source = 'garmin'
     union all
     select 'device last upload', arg_max(last_uploaded_at_utc, loaded_at_utc), 12
     from {{ ref('stg_garmin__device_syncs') }}

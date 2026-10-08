@@ -22,6 +22,8 @@ class FakeGarmin:
             pending = self.failures.get(method)
             if pending:
                 raise pending.pop(0)
+            if method == "get_activities_by_date":
+                return [{"activityId": 11, "activityName": "Run"}, {"activityId": 12, "activityName": "Ride"}]
             return {"method": method, "args": list(args), "nested": {"keep": None}}
 
         return call
@@ -39,9 +41,11 @@ def test_one_record_per_endpoint_and_day_with_payload_untouched() -> None:
     api = FakeGarmin()
     records = list(_source(api).extract(since=date(2026, 3, 9)))
 
-    assert [r.endpoint for r in records[:2]] == ["device_last_used", "activities"]
-    assert records[1].params == {"start_date": "2026-03-09", "end_date": "2026-03-10"}
-    day_records = records[2:]
+    assert [r.endpoint for r in records[:3]] == ["device_last_used", "activity", "activity"]
+    assert records[1].params == {"activity_id": 11}
+    assert records[1].payload == {"activityId": 11, "activityName": "Run"}
+    assert ("get_activities_by_date", ("2026-03-09", "2026-03-10")) in api.calls
+    day_records = records[3:]
     assert len(day_records) == 2 * len(DAY_ENDPOINTS)
     assert {r.params["date"] for r in day_records} == {"2026-03-09", "2026-03-10"}
     sleep = next(r for r in day_records if r.endpoint == "sleep")
@@ -49,8 +53,9 @@ def test_one_record_per_endpoint_and_day_with_payload_untouched() -> None:
 
 
 def test_default_lookback_when_never_loaded() -> None:
-    records = list(_source(FakeGarmin()).extract())
-    assert records[1].params["start_date"] == "2026-02-09"
+    api = FakeGarmin()
+    list(_source(api).extract())
+    assert ("get_activities_by_date", ("2026-02-09", "2026-03-10")) in api.calls
 
 
 def test_retries_transient_errors_with_backoff() -> None:
