@@ -64,3 +64,11 @@ def load(con: duckdb.DuckDBPyConnection, source: str, records: Iterable[RawRecor
         raise
     logger.info("Loaded %d records into %s (load_id=%s)", len(rows), table, load_id)
     return len(rows)
+
+
+def last_loaded_at(con: duckdb.DuckDBPyConnection, source: str) -> datetime | None:
+    """When the latest successful load for this source happened, if any."""
+    table = ensure_table(con, source)
+    # Read as naive UTC: returning TIMESTAMPTZ to Python would require pytz.
+    row = con.execute(f"SELECT max(loaded_at) AT TIME ZONE 'UTC' FROM {table}").fetchone()
+    return row[0].replace(tzinfo=UTC) if row and row[0] else None

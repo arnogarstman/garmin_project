@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -30,3 +31,13 @@ def test_loads_share_a_load_id_and_append(tmp_path: Path) -> None:
 def test_rejects_unsafe_source_name(tmp_path: Path) -> None:
     with storage.connect(tmp_path / "w.duckdb") as con, pytest.raises(ValueError):
         storage.load(con, "x; DROP TABLE y", [])
+
+
+def test_last_loaded_at(tmp_path: Path) -> None:
+    with storage.connect(tmp_path / "w.duckdb") as con:
+        assert storage.last_loaded_at(con, "demo") is None
+        before = datetime.now(UTC)
+        storage.load(con, "demo", [RawRecord("a", 1)])
+        last = storage.last_loaded_at(con, "demo")
+    assert last is not None
+    assert before <= last <= datetime.now(UTC)

@@ -3,6 +3,7 @@ logged-in session survives an app restart without needing the password
 (or an MFA code) again."""
 
 import shutil
+import sys
 
 from garminconnect import Garmin, GarminConnectAuthenticationError
 
@@ -50,6 +51,20 @@ def complete_mfa(api: Garmin, code: str) -> None:
     _persist_tokens(api)
 
 
+def connect() -> Garmin:
+    """Session for unattended use: cached tokens first, then GARMIN_EMAIL and
+    GARMIN_PASSWORD from .env. Asks for an MFA code only on a terminal."""
+    api = try_resume_session()
+    if api is not None:
+        return api
+    api, status = begin_login(config.require_env("GARMIN_EMAIL"), config.require_env("GARMIN_PASSWORD"))
+    if status == "mfa":
+        if not sys.stdin.isatty():
+            raise GarminConnectAuthenticationError("Garmin wants an MFA code; run the ingest once in a terminal")
+        complete_mfa(api, input("Garmin MFA code: ").strip())
+    return api
+
+
 def _persist_tokens(api: Garmin) -> None:
     TOKEN_DIR.mkdir(parents=True, exist_ok=True)
     api.client.dump(str(TOKEN_DIR))
@@ -66,6 +81,7 @@ __all__ = [
     "GarminConnectAuthenticationError",
     "begin_login",
     "complete_mfa",
+    "connect",
     "logout",
     "try_resume_session",
 ]
