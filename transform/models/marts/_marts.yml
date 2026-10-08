@@ -25,3 +25,28 @@ models:
 
   - name: rpt_current_status
     description: Latest known training status, readiness, body battery and resting HR. Always one row.
+
+  - name: rpt_garmin_freshness
+    description: Freshness signals with age and a stale flag. View; ages are relative to query time.
+    columns:
+      - name: signal
+        data_tests: [unique, not_null]
+
+  - name: rpt_metric_coverage
+    description: One row per day and metric, with whether the metric has data that day.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [calendar_date, metric]
+    columns:
+      - name: metric
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [summary, steps, stress, body_battery, sleep, hrv, readiness]
+
+  - name: rpt_metric_lag
+    description: Latest day with data, days behind today and completeness per metric. View.
+    columns:
+      - name: metric
+        data_tests: [unique, not_null]

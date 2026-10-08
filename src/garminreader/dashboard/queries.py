@@ -82,3 +82,23 @@ def last_loaded_at() -> datetime | None:
     df = _query("select max(loaded_at) at time zone 'UTC' as loaded_at from raw.garmin")
     value = df["loaded_at"].iloc[0]
     return None if pd.isna(value) else pd.Timestamp(value).to_pydatetime()
+
+
+def freshness() -> pd.DataFrame:
+    return _query("select * from marts.rpt_garmin_freshness")
+
+
+def metric_coverage(start: date, end: date) -> pd.DataFrame:
+    return _query(
+        """
+        select calendar_date, metric, is_present
+        from marts.rpt_metric_coverage
+        where calendar_date between ? and ?
+        order by calendar_date, metric
+        """,
+        [start, end],
+    )
+
+
+def metric_lag() -> pd.DataFrame:
+    return _query("select * from marts.rpt_metric_lag")
