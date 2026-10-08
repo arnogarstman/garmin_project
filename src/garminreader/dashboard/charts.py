@@ -4,7 +4,7 @@ per the project's chart style guide."""
 
 import plotly.graph_objects as go
 
-import colors
+from garminreader.dashboard import colors
 
 
 def _layout(fig: go.Figure, y_title: str = "") -> go.Figure:
@@ -85,7 +85,7 @@ def bar_chart(df, x: str, y: str, y_title: str = "") -> go.Figure:
             x=df[x],
             y=df[y],
             marker=dict(color=colors.sequential()),
-            hovertemplate=f"%{{y}}<extra></extra>",
+            hovertemplate="%{y}<extra></extra>",
         )
     )
     return _layout(fig, y_title)

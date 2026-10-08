@@ -87,15 +87,11 @@ def _fetch_live_day(_api: Garmin, display_name: str, endpoint: str, date_str: st
 
 
 @st.cache_data(ttl=SETTLED_TTL, show_spinner=False)
-def _fetch_settled_day(
-    _api: Garmin, display_name: str, endpoint: str, date_str: str
-) -> Any:
+def _fetch_settled_day(_api: Garmin, display_name: str, endpoint: str, date_str: str) -> Any:
     return getattr(_api, DAY_ENDPOINTS[endpoint])(date_str)
 
 
-def _fetch_day(
-    api: Garmin, display_name: str, endpoint: str, day: date, errors: FetchErrors
-) -> Any:
+def _fetch_day(api: Garmin, display_name: str, endpoint: str, day: date, errors: FetchErrors) -> Any:
     fetch = _fetch_live_day if is_live(day) else _fetch_settled_day
     try:
         return fetch(api, display_name, endpoint, day.isoformat())
@@ -105,9 +101,7 @@ def _fetch_day(
 
 
 @st.cache_data(ttl=LIVE_TTL, show_spinner=False)
-def _fetch_activities(
-    _api: Garmin, display_name: str, start_str: str, end_str: str
-) -> list[dict[str, Any]]:
+def _fetch_activities(_api: Garmin, display_name: str, start_str: str, end_str: str) -> list[dict[str, Any]]:
     return _api.get_activities_by_date(start_str, end_str) or []
 
 
@@ -159,8 +153,7 @@ def build_daily_dataframe(
                 "body_battery_drained": summary.get("bodyBatteryDrainedValue"),
                 "body_battery_highest": summary.get("bodyBatteryHighestValue"),
                 "body_battery_lowest": summary.get("bodyBatteryLowestValue"),
-                "sleep_seconds": summary.get("sleepingSeconds")
-                or sleep_dto.get("sleepTimeSeconds"),
+                "sleep_seconds": summary.get("sleepingSeconds") or sleep_dto.get("sleepTimeSeconds"),
                 "deep_sleep_seconds": sleep_dto.get("deepSleepSeconds"),
                 "light_sleep_seconds": sleep_dto.get("lightSleepSeconds"),
                 "rem_sleep_seconds": sleep_dto.get("remSleepSeconds"),
@@ -182,9 +175,7 @@ def build_daily_dataframe(
     return df
 
 
-def get_activities(
-    api: Garmin, display_name: str, start: date, end: date, errors: FetchErrors
-) -> pd.DataFrame:
+def get_activities(api: Garmin, display_name: str, start: date, end: date, errors: FetchErrors) -> pd.DataFrame:
     try:
         activities = _fetch_activities(api, display_name, start.isoformat(), end.isoformat())
     except Exception as exc:  # garminconnect raises HTTP, auth and parsing errors alike
@@ -219,17 +210,13 @@ def get_activities(
         df["start"] = pd.to_datetime(df["start"])
         df["date"] = df["start"].dt.normalize()
         df["pace_min_per_km"] = df.apply(
-            lambda r: (r["duration_min"] / r["distance_km"])
-            if r["distance_km"] and r["distance_km"] > 0.1
-            else None,
+            lambda r: (r["duration_min"] / r["distance_km"]) if r["distance_km"] and r["distance_km"] > 0.1 else None,
             axis=1,
         )
     return df
 
 
-def get_current_status(
-    api: Garmin, display_name: str, as_of: date, errors: FetchErrors
-) -> dict[str, Any]:
+def get_current_status(api: Garmin, display_name: str, as_of: date, errors: FetchErrors) -> dict[str, Any]:
     """Latest-snapshot metrics that don't need a historical trend: VO2max,
     training status label, and acute:chronic workload ratio. Reuses the
     per-day cache, so the summary and readiness already loaded for the daily
@@ -238,48 +225,33 @@ def get_current_status(
 
     status = _fetch_day(api, display_name, "training_status", as_of, errors) or {}
 
-    latest_status_by_device = (
-        (status.get("mostRecentTrainingStatus") or {}).get("latestTrainingStatusData")
-        or {}
-    )
+    latest_status_by_device = (status.get("mostRecentTrainingStatus") or {}).get("latestTrainingStatusData") or {}
     if latest_status_by_device:
         first_device = next(iter(latest_status_by_device.values()), {})
         status_code = first_device.get("trainingStatus")
         result["training_status"] = TRAINING_STATUS_BY_CODE.get(status_code, status_code)
-        result["training_status_feedback"] = first_device.get(
-            "trainingStatusFeedbackPhrase"
-        )
+        result["training_status_feedback"] = first_device.get("trainingStatusFeedbackPhrase")
 
     vo2max_block = status.get("mostRecentVO2Max") or {}
     generic_vo2 = (vo2max_block.get("generic") or {}) if vo2max_block else {}
-    result["vo2max"] = generic_vo2.get("vo2MaxPreciseValue") or generic_vo2.get(
-        "vo2MaxValue"
-    )
+    result["vo2max"] = generic_vo2.get("vo2MaxPreciseValue") or generic_vo2.get("vo2MaxValue")
 
     load_block = status.get("mostRecentTrainingLoadBalance") or {}
-    metrics_by_device = (
-        load_block.get("metricsTrainingLoadBalanceDTOMap") or {}
-    )
+    metrics_by_device = load_block.get("metricsTrainingLoadBalanceDTOMap") or {}
     if metrics_by_device:
         first_load = next(iter(metrics_by_device.values()), {})
         result["acwr"] = first_load.get("dailyAcuteChronicWorkloadRatio") or first_load.get(
             "dailyTrainingLoadAcuteChronicRatio"
         )
-        result["acwr_status"] = first_load.get("acwrStatus") or first_load.get(
-            "trainingBalanceFeedbackPhrase"
-        )
+        result["acwr_status"] = first_load.get("acwrStatus") or first_load.get("trainingBalanceFeedbackPhrase")
 
     readiness = _first(_fetch_day(api, display_name, "readiness", as_of, errors))
     result["readiness_score"] = readiness.get("score")
     result["readiness_level"] = readiness.get("level")
-    result["readiness_feedback"] = readiness.get("feedbackLong") or readiness.get(
-        "feedbackShort"
-    )
+    result["readiness_feedback"] = readiness.get("feedbackLong") or readiness.get("feedbackShort")
 
     summary = _fetch_day(api, display_name, "summary", as_of, errors) or {}
-    result["body_battery_current"] = summary.get(
-        "bodyBatteryMostRecentValue"
-    ) or summary.get("bodyBatteryHighestValue")
+    result["body_battery_current"] = summary.get("bodyBatteryMostRecentValue") or summary.get("bodyBatteryHighestValue")
     result["resting_hr"] = summary.get("restingHeartRate")
 
     return result

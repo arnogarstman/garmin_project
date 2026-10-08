@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 
-from ingest.sources.base import RawRecord, Source
+from garminreader.ingest.sources.base import RawRecord, Source
 
 SOURCES: dict[str, Callable[[], Source]] = {}
 

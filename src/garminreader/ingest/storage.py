@@ -10,7 +10,7 @@ from pathlib import Path
 
 import duckdb
 
-from ingest.sources.base import RawRecord
+from garminreader.ingest.sources.base import RawRecord
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +53,7 @@ def load(con: duckdb.DuckDBPyConnection, source: str, records: Iterable[RawRecor
     table = ensure_table(con, source)
     load_id = str(uuid.uuid4())
     loaded_at = datetime.now(UTC)
-    rows = [
-        (load_id, source, r.endpoint, json.dumps(r.params), json.dumps(r.payload), loaded_at)
-        for r in records
-    ]
+    rows = [(load_id, source, r.endpoint, json.dumps(r.params), json.dumps(r.payload), loaded_at) for r in records]
     con.begin()
     try:
         if rows:

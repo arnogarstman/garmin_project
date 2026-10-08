@@ -2,11 +2,13 @@
 logged-in session survives an app restart without needing the password
 (or an MFA code) again."""
 
-from pathlib import Path
+import shutil
 
 from garminconnect import Garmin, GarminConnectAuthenticationError
 
-TOKEN_DIR = Path(__file__).parent / ".garmin_tokens"
+from garminreader import config
+
+TOKEN_DIR = config.garmin_token_dir()
 
 
 def try_resume_session() -> Garmin | None:
@@ -54,18 +56,16 @@ def _persist_tokens(api: Garmin) -> None:
 
 
 def logout() -> None:
-    import shutil
-
     if TOKEN_DIR.exists():
         shutil.rmtree(TOKEN_DIR)
 
 
 __all__ = [
+    "TOKEN_DIR",
     "Garmin",
     "GarminConnectAuthenticationError",
-    "TOKEN_DIR",
-    "try_resume_session",
     "begin_login",
     "complete_mfa",
     "logout",
+    "try_resume_session",
 ]

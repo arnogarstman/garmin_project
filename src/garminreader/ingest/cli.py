@@ -1,11 +1,12 @@
-"""Run a source: `uv run python -m ingest <source> [--since YYYY-MM-DD]`."""
+"""Run a source: `uv run ingest <source> [--since YYYY-MM-DD]`."""
 
 import argparse
 import logging
 from datetime import date
 
-from ingest import config, storage
-from ingest.sources import SOURCES
+from garminreader import config
+from garminreader.ingest import storage
+from garminreader.ingest.sources import SOURCES
 
 logger = logging.getLogger("ingest")
 

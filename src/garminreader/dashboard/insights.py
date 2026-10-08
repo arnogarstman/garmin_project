@@ -62,8 +62,7 @@ def resting_hr_insight(df: pd.DataFrame) -> Insight | None:
         )
     else:
         finding = (
-            f"Your resting heart rate has stayed steady around {r_mean:.0f} bpm, "
-            "in line with your recent baseline."
+            f"Your resting heart rate has stayed steady around {r_mean:.0f} bpm, in line with your recent baseline."
         )
     return Insight(
         title="Resting Heart Rate",
@@ -84,14 +83,8 @@ def sleep_insight(df: pd.DataFrame) -> Insight | None:
     b_mean = baseline.mean() if not baseline.empty else r_mean
     direction = _direction(_pct_change(r_mean, b_mean), threshold=5.0)
     quality = "excellent" if r_mean >= 80 else "good" if r_mean >= 70 else "fair" if r_mean >= 60 else "poor"
-    finding = (
-        f"Your average sleep score over the last {len(recent)} nights is "
-        f"{r_mean:.0f} ({quality})"
-        + (
-            f", compared to {b_mean:.0f} before that."
-            if not baseline.empty
-            else "."
-        )
+    finding = f"Your average sleep score over the last {len(recent)} nights is {r_mean:.0f} ({quality})" + (
+        f", compared to {b_mean:.0f} before that." if not baseline.empty else "."
     )
     return Insight(
         title="Sleep Quality",
@@ -151,10 +144,8 @@ def stress_insight(df: pd.DataFrame) -> Insight | None:
     b_mean = baseline.mean() if not baseline.empty else r_mean
     direction = _direction(_pct_change(r_mean, b_mean), threshold=5.0)
     # for stress, "up" in value is bad, so invert for display wording only
-    finding = (
-        f"Average all-day stress over the last {len(recent)} days is "
-        f"{r_mean:.0f}/100"
-        + (f", versus {b_mean:.0f}/100 before." if not baseline.empty else ".")
+    finding = f"Average all-day stress over the last {len(recent)} days is {r_mean:.0f}/100" + (
+        f", versus {b_mean:.0f}/100 before." if not baseline.empty else "."
     )
     return Insight(
         title="Stress Load",
@@ -177,8 +168,7 @@ def body_battery_insight(df: pd.DataFrame) -> Insight | None:
     direction = _direction(_pct_change(r_mean, b_mean), threshold=5.0)
     finding = (
         f"Your Body Battery peaked at an average of {r_mean:.0f}/100 each day "
-        f"over the last {len(recent)} days"
-        + (f", versus {b_mean:.0f}/100 before." if not baseline.empty else ".")
+        f"over the last {len(recent)} days" + (f", versus {b_mean:.0f}/100 before." if not baseline.empty else ".")
     )
     return Insight(
         title="Body Battery",
@@ -236,9 +226,7 @@ def vo2max_insight(current_status: dict) -> Insight | None:
     )
 
 
-def build_all_insights(
-    daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict
-) -> list[Insight]:
+def build_all_insights(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict) -> list[Insight]:
     candidates = [
         resting_hr_insight(daily_df),
         sleep_insight(daily_df),

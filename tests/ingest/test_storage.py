@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from ingest import storage
-from ingest.sources.base import RawRecord
+from garminreader.ingest import storage
+from garminreader.ingest.sources.base import RawRecord
 
 
 def test_load_keeps_payload_verbatim(tmp_path: Path) -> None:

@@ -3,13 +3,14 @@ actual daily metrics and activity log (as CSV) plus the latest status
 snapshot, and does its own trend/correlation analysis rather than just
 restating the rule-based findings in `insights.py`."""
 
-import os
 from datetime import date, timedelta
 
 import anthropic
 import pandas as pd
 import streamlit as st
 from pydantic import BaseModel, Field
+
+from garminreader import config
 
 MODEL = "claude-opus-4-8"
 
@@ -33,11 +34,7 @@ thing for the athlete to pay attention to next."""
 
 
 def _api_key() -> str | None:
-    try:
-        key = st.secrets.get("anthropic_api_key", "")
-    except Exception:
-        key = ""
-    return key or os.environ.get("ANTHROPIC_API_KEY")
+    return config.optional_env("ANTHROPIC_API_KEY")
 
 
 def available() -> bool:
@@ -50,9 +47,7 @@ def _csv(df: pd.DataFrame) -> str:
     return df.to_csv(index=False)
 
 
-def _build_context(
-    daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict
-) -> str:
+def _build_context(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict) -> str:
     parts = [
         "## Daily recovery/wellness metrics (one row per day)",
         _csv(daily_df.sort_values("date")),
@@ -82,9 +77,7 @@ def _build_context(
 
 
 @st.cache_data(ttl=15 * 60, show_spinner=False)
-def generate_narrative(
-    daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict
-) -> str:
+def generate_narrative(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict) -> str:
     api_key = _api_key()
     if not api_key:
         raise RuntimeError("No Anthropic API key configured.")

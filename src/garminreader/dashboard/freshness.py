@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 from garminconnect import Garmin
 
-import garmin_data as gd
+from garminreader.dashboard import garmin_data as gd
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +45,7 @@ def parse_timestamp(value: Any) -> pd.Timestamp | None:
     return ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
 
 
-def _signal(
-    name: str, fetch: Callable[[], Any], extract: Callable[[Any], Any]
-) -> dict[str, Any]:
+def _signal(name: str, fetch: Callable[[], Any], extract: Callable[[Any], Any]) -> dict[str, Any]:
     try:
         payload = fetch()
         raw = extract(payload or {})
@@ -91,9 +89,7 @@ def sync_signals(api: Garmin, today: date | None = None) -> pd.DataFrame:
 
 def coverage(daily_df: pd.DataFrame) -> pd.DataFrame:
     """Boolean grid: one row per date, one column per metric, True if present."""
-    grid = pd.DataFrame(
-        {name: daily_df[col].notna() for name, col in COVERAGE_COLUMNS.items()}
-    )
+    grid = pd.DataFrame({name: daily_df[col].notna() for name, col in COVERAGE_COLUMNS.items()})
     grid.index = daily_df["date"].dt.date
     return grid
 

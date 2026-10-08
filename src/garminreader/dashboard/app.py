@@ -7,25 +7,17 @@ from datetime import date, timedelta
 
 import streamlit as st
 
-import ai_insights as ai
-import charts
-import garmin_client as gc
-import garmin_data as gd
-import insights as ins
-import training_suggestions as ts
+from garminreader import config
+from garminreader.dashboard import ai_insights as ai
+from garminreader.dashboard import charts
+from garminreader.dashboard import garmin_data as gd
+from garminreader.dashboard import insights as ins
+from garminreader.dashboard import training_suggestions as ts
+from garminreader.ingest.sources.garmin import auth as gc
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 st.set_page_config(page_title="Garmin Insights", page_icon="🏃", layout="wide")
-
-def _secret(key: str) -> str:
-    """Read an optional value from .streamlit/secrets.toml, e.g. to prefill
-    the login form. Never stores or requires it — just a local convenience
-    file that's gitignored and lives only on this machine."""
-    try:
-        return st.secrets.get(key, "")
-    except Exception:
-        return ""
 
 
 DIRECTION_ICON = {"up": "📈", "down": "📉", "flat": "➡️", "na": "ℹ️"}
@@ -57,8 +49,7 @@ if not st.session_state.api and not st.session_state.resume_attempted:
 def render_login() -> None:
     st.title("🏃 Garmin Insights")
     st.caption(
-        "Connect your Garmin account to see insights, explanations, and "
-        "training suggestions built from your own data."
+        "Connect your Garmin account to see insights, explanations, and training suggestions built from your own data."
     )
 
     if st.session_state.pending_mfa_api is not None:
@@ -78,10 +69,8 @@ def render_login() -> None:
         return
 
     with st.form("login_form"):
-        email = st.text_input("Garmin email", value=_secret("garmin_email"))
-        password = st.text_input(
-            "Garmin password", type="password", value=_secret("garmin_password")
-        )
+        email = st.text_input("Garmin email", value=config.optional_env("GARMIN_EMAIL") or "")
+        password = st.text_input("Garmin password", type="password", value=config.optional_env("GARMIN_PASSWORD") or "")
         submitted = st.form_submit_button("Log in")
 
     if submitted:
@@ -107,8 +96,8 @@ def render_login() -> None:
         "Your credentials go directly to Garmin and aren't stored by this app. "
         "A session token is cached locally in `.garmin_tokens/` so you won't "
         "need to log in again on this machine. To avoid retyping your email/"
-        "password on the first login, copy `.streamlit/secrets.toml.example` "
-        "to `.streamlit/secrets.toml` (gitignored) to prefill this form."
+        "password on the first login, set `GARMIN_EMAIL` and `GARMIN_PASSWORD` "
+        "in `.env` (gitignored) to prefill this form."
     )
 
 
@@ -132,9 +121,7 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
-    range_choice = st.selectbox(
-        "Date range", ["Last 7 days", "Last 30 days", "Last 90 days"], index=1
-    )
+    range_choice = st.selectbox("Date range", ["Last 7 days", "Last 30 days", "Last 90 days"], index=1)
     n_days = {"Last 7 days": 7, "Last 30 days": 30, "Last 90 days": 90}[range_choice]
     end_date = date.today()
     start_date = end_date - timedelta(days=n_days - 1)
@@ -359,11 +346,7 @@ with tab_insights:
 
     st.subheader("🤖 AI Coach")
     if not ai.available():
-        st.info(
-            "Add an `anthropic_api_key` to `.streamlit/secrets.toml` (or set "
-            "the `ANTHROPIC_API_KEY` environment variable) to enable an AI-"
-            "written analysis of your raw data."
-        )
+        st.info("Set `ANTHROPIC_API_KEY` in `.env` to enable an AI-written analysis of your raw data.")
     elif daily_df.empty:
         st.caption("Needs recovery data in this date range to analyze.")
     else:
@@ -410,20 +393,14 @@ with tab_suggestions:
     st.subheader("🤖 AI 7-day training plan")
 
     if not ai.available():
-        st.info(
-            "Add an `anthropic_api_key` to `.streamlit/secrets.toml` (or set "
-            "the `ANTHROPIC_API_KEY` environment variable) to generate a "
-            "personalized week-ahead schedule."
-        )
+        st.info("Set `ANTHROPIC_API_KEY` in `.env` to generate a personalized week-ahead schedule.")
     elif daily_df.empty:
         st.caption("Needs recovery data in this date range to build a plan.")
     else:
         if st.button("Generate 7-day plan"):
             with st.spinner("Asking Claude to build your week..."):
                 try:
-                    plan = ai.generate_training_plan(
-                        daily_df, activities_df, current_status, date.today()
-                    )
+                    plan = ai.generate_training_plan(daily_df, activities_df, current_status, date.today())
                     st.session_state["ai_training_plan"] = plan
                 except Exception as e:
                     st.error(f"Plan generation failed: {e}")
@@ -432,18 +409,14 @@ with tab_suggestions:
         if plan:
             st.write(plan.summary)
             cols = st.columns(7)
-            for col, day in zip(cols, plan.days):
-                with col:
-                    with st.container(border=True):
-                        st.markdown(f"**{day.day_of_week[:3]}**")
-                        st.caption(day.date)
-                        st.markdown(
-                            f"{INTENSITY_ICON.get(day.intensity.lower(), '⚪')} "
-                            f"**{day.intensity.title()}**"
-                        )
-                        st.write(day.focus)
-                        if day.duration_min:
-                            st.caption(f"{day.duration_min} min")
+            for col, day in zip(cols, plan.days, strict=False):
+                with col, st.container(border=True):
+                    st.markdown(f"**{day.day_of_week[:3]}**")
+                    st.caption(day.date)
+                    st.markdown(f"{INTENSITY_ICON.get(day.intensity.lower(), '⚪')} **{day.intensity.title()}**")
+                    st.write(day.focus)
+                    if day.duration_min:
+                        st.caption(f"{day.duration_min} min")
             for day in plan.days:
                 with st.expander(f"{day.day_of_week} {day.date} — {day.focus}"):
                     st.write(day.details)

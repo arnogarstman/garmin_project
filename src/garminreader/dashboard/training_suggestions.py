@@ -46,9 +46,7 @@ def _level_from_score(score: int) -> str:
     return "hard"
 
 
-def generate_suggestion(
-    current_status: dict, daily_df: pd.DataFrame
-) -> Suggestion:
+def generate_suggestion(current_status: dict, daily_df: pd.DataFrame) -> Suggestion:
     score = 100
     reasons: list[str] = []
 
@@ -65,15 +63,9 @@ def generate_suggestion(
             )
         elif readiness_score < 50:
             score -= 20
-            reasons.append(
-                f"Training Readiness is moderate ({readiness_score}/100), "
-                "suggesting only partial recovery."
-            )
+            reasons.append(f"Training Readiness is moderate ({readiness_score}/100), suggesting only partial recovery.")
         elif readiness_score >= 75:
-            reasons.append(
-                f"Training Readiness is high ({readiness_score}/100) — you're "
-                "well recovered."
-            )
+            reasons.append(f"Training Readiness is high ({readiness_score}/100) — you're well recovered.")
 
     if not daily_df.empty:
         last = daily_df.dropna(subset=["hrv_status"]).sort_values("date")
@@ -91,13 +83,9 @@ def generate_suggestion(
             sleep_score = last_sleep["sleep_score"].iloc[-1]
             if sleep_score < 60:
                 score -= 15
-                reasons.append(
-                    f"Last night's sleep score was low ({sleep_score:.0f}/100)."
-                )
+                reasons.append(f"Last night's sleep score was low ({sleep_score:.0f}/100).")
             elif sleep_score >= 85:
-                reasons.append(
-                    f"Last night's sleep score was excellent ({sleep_score:.0f}/100)."
-                )
+                reasons.append(f"Last night's sleep score was excellent ({sleep_score:.0f}/100).")
 
     acwr = current_status.get("acwr")
     if acwr:
@@ -118,14 +106,10 @@ def generate_suggestion(
     training_status = str(current_status.get("training_status") or "").upper()
     if training_status == "OVERREACHING":
         score -= 20
-        reasons.append(
-            "Garmin's training status is Overreaching — recent load is "
-            "outpacing recovery."
-        )
+        reasons.append("Garmin's training status is Overreaching — recent load is outpacing recovery.")
     elif training_status == "DETRAINING":
         reasons.append(
-            "Garmin's training status is Detraining — consistency has "
-            "dropped and fitness may start slipping."
+            "Garmin's training status is Detraining — consistency has dropped and fitness may start slipping."
         )
     elif training_status in {"PRODUCTIVE", "PEAKING"}:
         reasons.append(f"Garmin's training status is {training_status.title()}.")
@@ -146,11 +130,6 @@ def generate_suggestion(
     }[level]
 
     if not reasons:
-        reasons.append(
-            "No red flags in your recent recovery data — recommendation is "
-            "based on overall readiness."
-        )
+        reasons.append("No red flags in your recent recovery data — recommendation is based on overall readiness.")
 
-    return Suggestion(
-        level=level, headline=headline, reasons=reasons, plan=PLAN_BY_LEVEL[level]
-    )
+    return Suggestion(level=level, headline=headline, reasons=reasons, plan=PLAN_BY_LEVEL[level])
