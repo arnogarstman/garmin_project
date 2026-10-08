@@ -53,7 +53,7 @@ def generate_suggestion(
     reasons: list[str] = []
 
     readiness_score = current_status.get("readiness_score")
-    readiness_level = (current_status.get("readiness_level") or "").upper()
+    readiness_level = str(current_status.get("readiness_level") or "").upper()
     if readiness_score is not None:
         if readiness_score < 25 or readiness_level in {"LOW", "VERY_LOW"}:
             score -= 45
@@ -115,7 +115,7 @@ def generate_suggestion(
                 "if you're feeling good."
             )
 
-    training_status = (current_status.get("training_status") or "").upper()
+    training_status = str(current_status.get("training_status") or "").upper()
     if training_status == "OVERREACHING":
         score -= 20
         reasons.append(

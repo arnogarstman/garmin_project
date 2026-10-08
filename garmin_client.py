@@ -31,13 +31,24 @@ def begin_login(email: str, password: str) -> tuple[Garmin, str]:
     mfa_status, _ = api.login(tokenstore=str(TOKEN_DIR))
     if mfa_status == "needs_mfa":
         return api, "mfa"
-    return api, "ok"
+    # With return_on_mfa=True, garminconnect returns early on a non-MFA login
+    # without persisting tokens or loading the profile. Persist, then resume
+    # from the fresh tokens to get a fully initialised client.
+    _persist_tokens(api)
+    resumed = try_resume_session()
+    if resumed is None:
+        raise GarminConnectAuthenticationError("Login succeeded but session could not be resumed from saved tokens")
+    return resumed, "ok"
 
 
 def complete_mfa(api: Garmin, code: str) -> None:
     """Finish a login that paused for a Garmin MFA/2FA code, then persist
     the resulting session tokens so future app runs skip login entirely."""
     api.resume_login(None, code)
+    _persist_tokens(api)
+
+
+def _persist_tokens(api: Garmin) -> None:
     TOKEN_DIR.mkdir(parents=True, exist_ok=True)
     api.client.dump(str(TOKEN_DIR))
 

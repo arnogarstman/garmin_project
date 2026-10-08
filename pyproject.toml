@@ -1,0 +1,24 @@
+[project]
+name = "garminreader"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.70",
+    "duckdb>=1.5.6",
+    "garminconnect>=0.3.2",
+    "pandas>=2.2",
+    "plotly>=5.22",
+    "python-dotenv>=1.2.3",
+    "streamlit>=1.38",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.4.0",
+    "nbformat>=5.11.1",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

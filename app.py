@@ -2,19 +2,34 @@
 your activity + recovery data into insights, explanations, and a daily
 training suggestion."""
 
+import logging
 from datetime import date, timedelta
 
 import streamlit as st
 
+import ai_insights as ai
 import charts
 import garmin_client as gc
 import garmin_data as gd
 import insights as ins
 import training_suggestions as ts
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
 st.set_page_config(page_title="Garmin Insights", page_icon="🏃", layout="wide")
 
+def _secret(key: str) -> str:
+    """Read an optional value from .streamlit/secrets.toml, e.g. to prefill
+    the login form. Never stores or requires it — just a local convenience
+    file that's gitignored and lives only on this machine."""
+    try:
+        return st.secrets.get(key, "")
+    except Exception:
+        return ""
+
+
 DIRECTION_ICON = {"up": "📈", "down": "📉", "flat": "➡️", "na": "ℹ️"}
+INTENSITY_ICON = {"rest": "🛌", "easy": "🟢", "moderate": "🟡", "hard": "🔴"}
 BANNER_BY_LEVEL = {
     "rest": st.error,
     "easy": st.warning,
@@ -63,8 +78,10 @@ def render_login() -> None:
         return
 
     with st.form("login_form"):
-        email = st.text_input("Garmin email")
-        password = st.text_input("Garmin password", type="password")
+        email = st.text_input("Garmin email", value=_secret("garmin_email"))
+        password = st.text_input(
+            "Garmin password", type="password", value=_secret("garmin_password")
+        )
         submitted = st.form_submit_button("Log in")
 
     if submitted:
@@ -89,7 +106,9 @@ def render_login() -> None:
     st.info(
         "Your credentials go directly to Garmin and aren't stored by this app. "
         "A session token is cached locally in `.garmin_tokens/` so you won't "
-        "need to log in again on this machine."
+        "need to log in again on this machine. To avoid retyping your email/"
+        "password on the first login, copy `.streamlit/secrets.toml.example` "
+        "to `.streamlit/secrets.toml` (gitignored) to prefill this form."
     )
 
 
@@ -120,26 +139,44 @@ with st.sidebar:
     end_date = date.today()
     start_date = end_date - timedelta(days=n_days - 1)
 
-    if st.button("Refresh data"):
+    if st.button("Refresh data", help="Re-fetch today, yesterday and activities."):
+        gd.clear_recent_cache()
+        st.rerun()
+    if st.button("Reload full history", help="Re-fetch every day in the range. Slow."):
         st.cache_data.clear()
         st.rerun()
+    st.caption(
+        f"Today and yesterday refresh automatically every {gd.LIVE_TTL // 60} "
+        "minutes. Older days are cached for a week."
+    )
 
 # --------------------------------------------------------------------------
 # Data loading
 # --------------------------------------------------------------------------
 
+fetch_errors = gd.FetchErrors()
 progress_bar = st.progress(0.0, text="Loading Garmin data...")
 daily_df = gd.build_daily_dataframe(
     api,
     display_name,
     start_date,
     end_date,
+    fetch_errors,
     progress=lambda p: progress_bar.progress(p, text=f"Loading Garmin data... {int(p * 100)}%"),
 )
 progress_bar.empty()
 
-activities_df = gd.get_activities(api, display_name, start_date, end_date)
-current_status = gd.get_current_status(api, display_name, end_date)
+activities_df = gd.get_activities(api, display_name, start_date, end_date, fetch_errors)
+current_status = gd.get_current_status(api, display_name, end_date, fetch_errors)
+
+if fetch_errors.failures:
+    st.warning(
+        f"{len(fetch_errors.failures)} Garmin requests failed, so some values may "
+        "be missing. Failed requests are not cached: click Refresh data to retry. "
+        "Details are in the terminal log."
+    )
+    with st.expander("Failed requests"):
+        st.write(fetch_errors.failures)
 
 tab_overview, tab_activities, tab_recovery, tab_insights, tab_suggestions = st.tabs(
     ["Overview", "Activities", "Recovery", "Insights", "Training Suggestions"]
@@ -170,7 +207,7 @@ with tab_overview:
 
     c5, c6, c7 = st.columns(3)
     c5.metric("VO2 Max", fmt(current_status.get("vo2max"), decimals=1))
-    c6.metric("Training Status", (current_status.get("training_status") or "–").title())
+    c6.metric("Training Status", str(current_status.get("training_status") or "–").title())
     c7.metric("Acute:Chronic Load Ratio", fmt(current_status.get("acwr"), decimals=2))
 
     with st.expander("Show raw data (debug)"):
@@ -241,6 +278,8 @@ with tab_recovery:
                     charts.line_chart(rhr_df, "date", "resting_hr", y_title="bpm"),
                     use_container_width=True,
                 )
+            else:
+                st.info("No resting heart rate data available for this range.")
         with col_b:
             st.subheader("Sleep score")
             sleep_df = daily_df.dropna(subset=["sleep_score"])
@@ -249,6 +288,8 @@ with tab_recovery:
                     charts.line_chart(sleep_df, "date", "sleep_score", y_title="score / 100"),
                     use_container_width=True,
                 )
+            else:
+                st.info("No sleep score data available for this range.")
 
         col_c, col_d = st.columns(2)
         with col_c:
@@ -315,6 +356,29 @@ with tab_insights:
     all_insights = ins.build_all_insights(daily_df, activities_df, current_status)
     if not all_insights:
         st.info("Not enough data yet to generate insights — try a longer date range.")
+
+    st.subheader("🤖 AI Coach")
+    if not ai.available():
+        st.info(
+            "Add an `anthropic_api_key` to `.streamlit/secrets.toml` (or set "
+            "the `ANTHROPIC_API_KEY` environment variable) to enable an AI-"
+            "written analysis of your raw data."
+        )
+    elif daily_df.empty:
+        st.caption("Needs recovery data in this date range to analyze.")
+    else:
+        if st.button("Generate AI synthesis"):
+            with st.spinner("Asking Claude to analyze your data..."):
+                try:
+                    narrative = ai.generate_narrative(daily_df, activities_df, current_status)
+                    st.session_state["ai_narrative"] = narrative
+                except Exception as e:
+                    st.error(f"AI synthesis failed: {e}")
+        if st.session_state.get("ai_narrative"):
+            with st.container(border=True):
+                st.write(st.session_state["ai_narrative"])
+
+    st.divider()
     for insight in all_insights:
         with st.container(border=True):
             st.markdown(f"### {DIRECTION_ICON[insight.direction]} {insight.title}")
@@ -341,3 +405,50 @@ with tab_suggestions:
         "This is a rule-based suggestion from your recent Garmin metrics, not "
         "medical or coaching advice. Always listen to your body."
     )
+
+    st.divider()
+    st.subheader("🤖 AI 7-day training plan")
+
+    if not ai.available():
+        st.info(
+            "Add an `anthropic_api_key` to `.streamlit/secrets.toml` (or set "
+            "the `ANTHROPIC_API_KEY` environment variable) to generate a "
+            "personalized week-ahead schedule."
+        )
+    elif daily_df.empty:
+        st.caption("Needs recovery data in this date range to build a plan.")
+    else:
+        if st.button("Generate 7-day plan"):
+            with st.spinner("Asking Claude to build your week..."):
+                try:
+                    plan = ai.generate_training_plan(
+                        daily_df, activities_df, current_status, date.today()
+                    )
+                    st.session_state["ai_training_plan"] = plan
+                except Exception as e:
+                    st.error(f"Plan generation failed: {e}")
+
+        plan = st.session_state.get("ai_training_plan")
+        if plan:
+            st.write(plan.summary)
+            cols = st.columns(7)
+            for col, day in zip(cols, plan.days):
+                with col:
+                    with st.container(border=True):
+                        st.markdown(f"**{day.day_of_week[:3]}**")
+                        st.caption(day.date)
+                        st.markdown(
+                            f"{INTENSITY_ICON.get(day.intensity.lower(), '⚪')} "
+                            f"**{day.intensity.title()}**"
+                        )
+                        st.write(day.focus)
+                        if day.duration_min:
+                            st.caption(f"{day.duration_min} min")
+            for day in plan.days:
+                with st.expander(f"{day.day_of_week} {day.date} — {day.focus}"):
+                    st.write(day.details)
+                    st.caption(f"Why: {day.rationale}")
+            st.caption(
+                "AI-generated from your recent training and recovery data — "
+                "not medical or professional coaching advice."
+            )
