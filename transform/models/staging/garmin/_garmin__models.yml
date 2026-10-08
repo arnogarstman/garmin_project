@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: stg_garmin__daily_summary
+    description: Daily wellness summary (steps, stress, body battery, resting HR). One row per day.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+
+  - name: stg_garmin__sleep
+    description: Nightly sleep totals and score, attributed to the day the night ends. One row per day.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+
+  - name: stg_garmin__hrv
+    description: Overnight HRV summary. One row per day.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+
+  - name: stg_garmin__training_readiness
+    description: Training readiness readings. One row per reading; several per day.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [calendar_date, measured_at_utc]
+    columns:
+      - name: calendar_date
+        data_tests: [not_null]
+
+  - name: stg_garmin__training_status
+    description: Training status, acute:chronic load and VO2max for the primary device. One row per day.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+
+  - name: stg_garmin__activities
+    description: Activity summaries. One row per activity.
+    columns:
+      - name: activity_id
+        data_tests: [unique, not_null]
+      - name: started_at_local
+        data_tests: [not_null]
+
+  - name: stg_garmin__device_syncs
+    description: Device upload time as seen at each ingest run.

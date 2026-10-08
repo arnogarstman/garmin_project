@@ -1,0 +1,15 @@
+name: garminreader
+version: "1.0.0"
+profile: garminreader
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+
+models:
+  garminreader:
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table

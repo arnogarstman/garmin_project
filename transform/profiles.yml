@@ -1,0 +1,8 @@
+# DUCKDB_PATH is set by `uv run transform` from the project config.
+garminreader:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH') }}"
+      threads: 4

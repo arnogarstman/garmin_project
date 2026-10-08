@@ -10,12 +10,21 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(PROJECT_ROOT / ".env")
 
 
+def _project_path(key: str, default: str) -> Path:
+    """A path setting; relative values resolve against the project root."""
+    return PROJECT_ROOT / os.getenv(key, default)
+
+
 def duckdb_path() -> Path:
-    return Path(os.getenv("DUCKDB_PATH", PROJECT_ROOT / "data" / "warehouse.duckdb"))
+    return _project_path("DUCKDB_PATH", "data/warehouse.duckdb")
 
 
 def garmin_token_dir() -> Path:
-    return Path(os.getenv("GARMIN_TOKEN_DIR", PROJECT_ROOT / ".garmin_tokens"))
+    return _project_path("GARMIN_TOKEN_DIR", ".garmin_tokens")
+
+
+def dbt_project_dir() -> Path:
+    return PROJECT_ROOT / "transform"
 
 
 def require_env(key: str) -> str:

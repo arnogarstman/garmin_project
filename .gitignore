@@ -7,3 +7,7 @@ __pycache__/
 .env
 data/
 *.har
+transform/target/
+transform/logs/
+transform/dbt_packages/
+transform/.user.yml
