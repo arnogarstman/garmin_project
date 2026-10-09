@@ -67,7 +67,9 @@ QUERIES: dict[str, str] = {
     """,
     "runs": """
         select started_at_local, activity_date, activity_name, activity_type, round(distance_km, 1) as km,
-               round(duration_min, 1) as min, round(pace_min_per_km, 2) as pace
+               round(duration_min, 1) as min, round(pace_min_per_km, 2) as pace, avg_hr,
+               hr_zone_1_min as z1, hr_zone_2_min as z2, hr_zone_3_min as z3, hr_zone_4_min as z4,
+               hr_zone_5_min as z5
         from marts.fct_activities
         where activity_date > current_date - interval {days} day and activity_type ilike '%run%'
         order by started_at_local

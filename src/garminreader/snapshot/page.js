@@ -12,6 +12,7 @@ const pace = p => { let m = Math.floor(p), s = Math.round((p - m) * 60); if (s =
 // Average pace (min:ss per km) of a half marathon finished in s seconds.
 const HM_KM = 21.0975;
 const hmPace = s => `${pace(s / 60 / HM_KM)} /km`;
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const num = v => typeof v === 'number' && isFinite(v);
 const lower = v => (v ?? '').toString().toLowerCase().replaceAll('_', ' ');
 const median = a => { const b = a.filter(num).sort((x, y) => x - y); return b.length ? b[b.length >> 1] : null; };
@@ -80,6 +81,146 @@ function renderPage(D) {
     tile('Half marathon', num(st.predicted_half_marathon_s) ? hms(st.predicted_half_marathon_s) : '–', [num(st.predicted_half_marathon_s) && hmPace(st.predicted_half_marathon_s), num(st.predicted_10k_s) && `10K ${hms(st.predicted_10k_s)}`].filter(Boolean).join(' · ') || 'Predicted'),
     tile('Weight', num(st.weight_kg) ? `${st.weight_kg.toFixed(1)}<small>kg</small>` : '–', num(st.body_fat_pct) ? `Body fat ${st.body_fat_pct}%` : ''),
   ].join('');
+
+  // Coach's read: five checks a coach makes on this data, each with a verdict, the numbers behind
+  // it and the next step. Status is good, warn or crit; the pill always carries its word too.
+  {
+    const DAYS28 = 28 * DAY, mean = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+    const sd = a => { const m = mean(a); return a.length > 1 ? Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1)) : null; };
+    const signed = (v, d = 0) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(d)}`;
+    const runs = (D.runs || []).filter(r => num(r.km) && r.km > 0);
+    const recent = runs.filter(r => t(r.activity_date) > x1 - DAYS28);
+    const card = (topic, status, label, verdict, body, extra = '') =>
+      `<div class="card ${status}"><div class="head"><span class="eyebrow">${topic}</span><span class="pill ${status === 'good' ? 'good' : status === 'warn' ? 'warn' : 'crit'}">${label}</span></div><h3>${verdict}</h3>${extra}<p>${body}</p></div>`;
+    const none = (topic, msg) => `<div class="card"><div class="head"><span class="eyebrow">${topic}</span></div><p>${msg}</p></div>`;
+    const kv = rows => `<div class="kv">${rows.map(([k, v, d]) => `<span>${k}</span><b>${v}</b><i>${d}</i>`).join('')}</div>`;
+    const cards = [];
+    const weekStart = d => { const x = new Date(t(d)); return t(iso(new Date(x.getFullYear(), x.getMonth(), x.getDate() - (x.getDay() + 6) % 7))); };
+
+    // 1. Recovery: last night against the athlete's own 28-day baseline (the night itself excluded).
+    {
+      const lastDay = days[days.length - 1], base = days.slice(-29, -1);
+      const hrvB = base.map(r => r.hrv).filter(num), rhrB = base.map(r => r.rhr).filter(num);
+      const sleep7 = mean(days.slice(-7).map(r => r.sleep).filter(num)), sleepB = mean(base.map(r => r.sleep).filter(num));
+      if (!lastDay || hrvB.length < 7 || rhrB.length < 7) cards.push(none('Recovery today', 'Needs a week of HRV and resting heart rate readings to set a baseline.'));
+      else {
+        const hrvM = mean(hrvB), hrvS = sd(hrvB) || 1, rhrM = mean(rhrB);
+        const flags = [];
+        if (num(lastDay.hrv) && lastDay.hrv < hrvM - hrvS) flags.push('HRV is below your normal range');
+        if (num(lastDay.rhr) && lastDay.rhr > rhrM + 3) flags.push('resting HR is up');
+        if (num(sleep7) && num(sleepB) && sleep7 < sleepB - 5) flags.push('sleep has dipped this week');
+        const [status, label, verdict, advice] = !flags.length
+          ? ['good', 'recovered', 'Ready to train as planned', 'HRV, resting HR and sleep all sit in your normal range, so the planned session can go ahead.']
+          : flags.length === 1
+            ? ['warn', 'watch', 'Some fatigue showing', `${flags[0][0].toUpperCase() + flags[0].slice(1)}. Keep hard work short today or swap it for an easy run.`]
+            : ['crit', 'fatigued', 'Under-recovered', `${flags.join(' and ').replace(/^./, c => c.toUpperCase())}. Take a rest day or a very easy 30 minutes.`];
+        cards.push(card('Recovery today', status, label, verdict, advice, kv([
+          ['HRV last night', num(lastDay.hrv) ? `${lastDay.hrv} ms` : '–', num(lastDay.hrv) ? `${signed(lastDay.hrv - hrvM)} vs ${hrvM.toFixed(0)}` : ''],
+          ['Resting HR', num(lastDay.rhr) ? `${lastDay.rhr} bpm` : '–', num(lastDay.rhr) ? `${signed(lastDay.rhr - rhrM)} vs ${rhrM.toFixed(0)}` : ''],
+          ['Sleep, 7-day avg', num(sleep7) ? sleep7.toFixed(0) : '–', num(sleep7) && num(sleepB) ? `${signed(sleep7 - sleepB)} vs ${sleepB.toFixed(0)}` : ''],
+        ])));
+      }
+    }
+
+    // 2. Intensity balance over 4 weeks of running: about 80% easy (zones 1-2) is the endurance norm;
+    // a large zone 3 share is the "grey zone" that tires without building much.
+    {
+      const sum = k => recent.reduce((s, r) => s + (num(r[k]) ? r[k] : 0), 0);
+      const easy = sum('z1') + sum('z2'), mod = sum('z3'), hard = sum('z4') + sum('z5'), tot = easy + mod + hard;
+      if (tot < 60) cards.push(none('Intensity balance', 'Needs heart rate zone data from at least an hour of running in the last 4 weeks.'));
+      else {
+        const pe = easy / tot * 100, pm = mod / tot * 100, ph = hard / tot * 100;
+        const [status, label, verdict, advice] = pe >= 75
+          ? ['good', 'balanced', 'Mostly easy, as it should be', `${pe.toFixed(0)}% of your running time was easy. That base lets the hard sessions count.`]
+          : pm > ph
+            ? ['warn', 'grey zone', 'Too much moderate running', `Only ${pe.toFixed(0)}% was easy and ${pm.toFixed(0)}% sat in zone 3. Slow the easy runs down until they stay in zones 1 and 2, and keep the hard days hard.`]
+            : ['warn', 'too hard', 'Too much hard running', `${ph.toFixed(0)}% was in zones 4 and 5. Cap hard work at two sessions a week and run the rest easy.`];
+        const W = 1000, seg = [[pe, 'c2', 'Easy Z1–2'], [pm, 'c3', 'Moderate Z3'], [ph, 'c6', 'Hard Z4–5']];
+        let x = 0, svg = `<svg viewBox="0 0 ${W} 40" preserveAspectRatio="none" style="height:28px" role="img" aria-label="Easy ${pe.toFixed(0)}%, moderate ${pm.toFixed(0)}%, hard ${ph.toFixed(0)}%">`;
+        for (const [p, c, name] of seg) {
+          const w = p / 100 * W;
+          if (w > 0) svg += `<rect x="${x}" y="8" width="${Math.max(w - 3, 0)}" height="22" rx="3" fill="${css(c)}"><title>${name}: ${p.toFixed(0)}%</title></rect>`;
+          x += w;
+        }
+        svg += `<line x1="${0.8 * W}" x2="${0.8 * W}" y1="2" y2="38" stroke="${css('ink')}" stroke-width="2" stroke-dasharray="3 3"/></svg>`;
+        svg += '<div class="legend">' + seg.map(([p, c, name]) => `<span><b style="background:${css(c)};height:8px;border-radius:2px"></b>${name} ${p.toFixed(0)}%</span>`).join('') + '<span><b style="background:none;border-left:2px dashed var(--ink);height:12px;width:0;border-radius:0"></b>80% easy target</span></div>';
+        cards.push(card('Intensity balance · 4 weeks', status, label, verdict, advice, svg));
+      }
+    }
+
+    // 3. Aerobic efficiency: metres per heartbeat on the easier half of the runs (by average HR).
+    // Rising means the same effort carries you further: aerobic fitness is building.
+    {
+      const pts = runs.filter(r => num(r.avg_hr) && num(r.pace) && r.pace > 0 && num(r.min) && r.min >= 20);
+      const cut = median(pts.map(r => r.avg_hr));
+      const easy = pts.filter(r => r.avg_hr <= cut).map(r => [t(r.activity_date), 1000 / r.pace / r.avg_hr, r]);
+      if (easy.length < 4) cards.push(none('Aerobic efficiency', 'Needs at least 4 easy runs of 20 minutes or more with heart rate.'));
+      else {
+        const xs = easy.map(p => p[0]), ys = easy.map(p => p[1]), mx = mean(xs), my = mean(ys);
+        const slope = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0) / (xs.reduce((s, x) => s + (x - mx) ** 2, 0) || 1);
+        const fit = x => my + slope * (x - mx), a = xs[0], b = xs[xs.length - 1], chg = (fit(b) / fit(a) - 1) * 100;
+        const [status, label, verdict] = chg >= 2 ? ['good', 'improving', 'Easy pace is getting cheaper'] : chg > -2 ? ['warn', 'flat', 'Efficiency is holding steady'] : ['crit', 'declining', 'Easy runs cost more than before'];
+        const advice = chg >= 2
+          ? `You cover ${chg.toFixed(0)}% more ground per heartbeat than at the start of the period. The easy volume is working.`
+          : chg > -2
+            ? 'No clear change yet. Consistent easy volume over several weeks is what moves this.'
+            : `Down ${Math.abs(chg).toFixed(0)}%. Heat, fatigue or illness raise heart rate at the same pace; check recovery before adding load.`;
+        const f = frame({ x0: a, x1: Math.max(b, a + DAY), yTicks: niceTicks(Math.min(...ys) * 0.97, Math.max(...ys) * 1.03, 3), fmtY: v => v.toFixed(2), W: 520, H: 150 });
+        let svg = f.s + `<path d="M${f.X(a)},${f.Y(fit(a))}L${f.X(b)},${f.Y(fit(b))}" stroke="${css('ink2')}" stroke-width="1.5" stroke-dasharray="5 4" fill="none"/>`;
+        for (const [x, y, r] of easy) svg += `<circle cx="${f.X(x)}" cy="${f.Y(y)}" r="4.5" fill="${css('c1')}" stroke="${css('bg')}" stroke-width="2"><title>${esc(r.activity_name)} ${fmtDate(r.activity_date)}: ${pace(r.pace)} /km at ${Math.round(r.avg_hr)} bpm, ${y.toFixed(2)} m per beat</title></circle>`;
+        cards.push(card('Aerobic efficiency', status, label, verdict, advice + ' Metres per heartbeat on your easier runs; dashed line is the trend.', svg + '</svg>'));
+      }
+    }
+
+    // 4. Load progression: last complete week against up to three before it, plus the 7:28-day load ratio.
+    {
+      const kmByWeek = new Map();
+      for (const r of runs) kmByWeek.set(weekStart(r.activity_date), (kmByWeek.get(weekStart(r.activity_date)) || 0) + r.km);
+      const thisWeek = weekStart(iso(new Date(x1))), wk = i => kmByWeek.get(thisWeek - i * 7 * DAY) || 0;
+      // Only weeks fully inside the data count: the week of the first run may be cut off.
+      const covered = runs.length ? weekStart(runs[0].activity_date) + 7 * DAY : Infinity;
+      const before = [2, 3, 4].filter(i => thisWeek - i * 7 * DAY >= covered);
+      const last = wk(1), prev = mean(before.map(wk));
+      if (!before.length || !prev) cards.push(none('Load progression', 'Needs at least two complete weeks of running to compare.'));
+      else {
+        const chg = (last / prev - 1) * 100, acwr = num(st.acwr) ? st.acwr : null;
+        const [status, label, verdict, advice] = chg > 25 || (acwr && acwr > 1.5)
+          ? ['crit', 'spike', 'Load jumped sharply', 'A jump this size is when injuries start. Hold this week at or below last week, then build by about 10% at a time.']
+          : chg > 10 || (acwr && acwr > 1.3)
+            ? ['warn', 'building fast', 'Building faster than 10% a week', 'Fine for a week, but plan a lighter week soon so the body catches up.']
+            : chg < -30
+              ? ['warn', 'down week', 'A clear step down', 'Good as a planned recovery week. If it was not planned, pick volume back up gradually.']
+              : ['good', 'steady', 'A sustainable build', 'Volume is moving in steps the body can absorb. Keep every third or fourth week lighter.'];
+        cards.push(card('Load progression', status, label, verdict, advice, kv([
+          ['Last full week', `${last.toFixed(1)} km`, `${signed(chg)}%`],
+          [`${before.length} week${before.length === 1 ? '' : 's'} before, avg`, `${prev.toFixed(1)} km`, ''],
+          ['Acute : chronic load', acwr ? acwr.toFixed(2) : '–', acwr ? lower(st.acwr_status) : ''],
+        ])));
+      }
+    }
+
+    // 5. Long run: the longest run of the last 4 weeks and its share of its week's (Monday to Sunday) volume.
+    {
+      if (!recent.length) cards.push(none('Long run', 'No runs in the last 4 weeks.'));
+      else {
+        const lr = recent.reduce((a, r) => r.km > a.km ? r : a), lrWeek = weekStart(lr.activity_date);
+        const weekKm = runs.filter(r => weekStart(r.activity_date) === lrWeek).reduce((s, r) => s + r.km, 0);
+        const share = weekKm ? lr.km / weekKm * 100 : 0, perWeek = recent.length / 4;
+        const [status, label, verdict, advice] = lr.km < 14
+          ? ['warn', 'short', 'Long run is short for a half', `Your longest run in 4 weeks is ${lr.km.toFixed(1)} km. Add 1 to 2 km a week until it reaches 16 to 18 km, run at easy pace.`]
+          : share > 40
+            ? ['warn', 'lopsided', 'Too much of the week in one run', `That run was ${share.toFixed(0)}% of its week. Spread volume so the long run is about 30%; it recovers faster and injures less.`]
+            : ['good', 'on track', lr.km >= 18 ? 'Half marathon distance is covered' : 'Long run is building well', `Your longest run is ${lr.km.toFixed(1)} km, ${share.toFixed(0)}% of its week. ${lr.km >= 18 ? 'Hold it here and add some race-pace kilometres late in the run.' : 'Keep extending it gradually toward 16 to 18 km.'}`];
+        cards.push(card('Long run · 4 weeks', status, label, verdict, advice, kv([
+          ['Longest run', `${lr.km.toFixed(1)} km`, fmtDate(lr.activity_date)],
+          ['Share of its week', `${share.toFixed(0)}%`, `of ${weekKm.toFixed(0)} km`],
+          ['Runs per week', perWeek.toFixed(1), `${recent.length} in 4 weeks`],
+        ])));
+      }
+    }
+
+    $('coach').innerHTML = cards.join('');
+  }
 
   // Goal: a half marathon target such as "under 1:40" becomes a reference line.
   const G = D.goal;
@@ -185,7 +326,6 @@ function renderPage(D) {
   // on one fixed scale.
   {
     const runs = D.runs || [], byDay = new Map(), totals = new Map();
-    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     for (const r of runs) {
       const k = r.activity_date.slice(0, 10), m = k.slice(0, 7);
       if (!byDay.has(k)) byDay.set(k, []);
