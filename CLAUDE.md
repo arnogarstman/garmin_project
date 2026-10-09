@@ -43,7 +43,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `uv run dashboard`
 - `DATA_PROFILE=demo uv run synthesize [--days 365] [--seed 42]`: rebuilds the demo warehouse from scratch, ending today; follow with `DATA_PROFILE=demo uv run transform`.
 - `uv run pipeline [--partition YYYY-MM-DD]`: the Dagster job in process (ingest, dbt build, checks); what the daily run executes.
-- `uv run snapshot [--out PATH] [--days 365] [--live]`: static HTML snapshot of the marts; defaults to `data/[demo/]snapshot.html` (gitignored with the data). `--live` (MotherDuck only) embeds no data: the page runs one query through the viewer's MotherDuck connector when opened; publish it as an artifact declaring the `mcp` capability for MotherDuck `query`.
+- `uv run snapshot [--out PATH] [--days 365] [--live]`: static HTML snapshot of the marts; defaults to `data/[demo/]snapshot.html` (gitignored with the data). `--live` (MotherDuck only) embeds no data: the page runs its queries through the viewer's MotherDuck connector when opened, one call per section (the connector caps a result at 50 KB); publish it as an artifact declaring the `mcp` capability for MotherDuck `query`.
 - `uv run dagster dev`: Dagster UI for lineage, partitions and backfills.
 - `uv run explore`: DuckDB UI on a snapshot of a local warehouse taken at startup; never blocks ingest or transform. For MotherDuck use its web UI.
 - Checks: `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest`

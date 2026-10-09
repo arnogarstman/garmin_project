@@ -27,7 +27,9 @@ def main() -> None:
     if args.live:
         if not config.is_motherduck(database):
             parser.error(f"--live needs a MotherDuck DATABASE (md:<name>), not {database}")
-        html = render.render_live(database.removeprefix("md:"), data.live_sql(days=args.days), data.context())
+        html = render.render_live(
+            database.removeprefix("md:"), data.live_queries(days=args.days), data.SINGLE_ROW, data.context()
+        )
     elif not db.exists():
         parser.error(f"No database at {database}; run `uv run transform` first")
     else:

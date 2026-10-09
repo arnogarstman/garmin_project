@@ -1,7 +1,5 @@
 import json
-import re
 from pathlib import Path
-from typing import Any
 
 import duckdb
 
@@ -31,29 +29,19 @@ def test_template_markers_are_all_filled() -> None:
     assert _script_value(html, "__LIVE__") is None
 
 
-def test_live_page_embeds_the_query_and_no_data() -> None:
-    sql = data.live_sql(days=30)
-    html = render.render_live("garmin", sql, {"goal": None, "profile": "prod"})
+def test_live_page_embeds_the_queries_and_no_data() -> None:
+    queries = data.live_queries(days=30)
+    html = render.render_live("garmin", queries, data.SINGLE_ROW, {"goal": None, "profile": "prod"})
     assert _script_value(html, "__SNAPSHOT__") is None
     assert _script_value(html, "__LIVE__") == {
         "server": render.LIVE_SERVER,
         "tool": render.LIVE_TOOL,
         "database": "garmin",
-        "sql": sql,
+        "queries": queries,
+        "single_row": sorted(data.SINGLE_ROW),
         "goal": None,
         "profile": "prod",
     }
-
-
-def _same_timestamps(value: object) -> object:
-    """DuckDB's JSON writes timestamps with a space, the snapshot as ISO 8601 with a T."""
-    if isinstance(value, str):
-        return re.sub(r"^(\d{4}-\d{2}-\d{2})T(\d{2}:)", r"\1 \2", value)
-    if isinstance(value, list):
-        return [_same_timestamps(v) for v in value]
-    if isinstance(value, dict):
-        return {k: _same_timestamps(v) for k, v in value.items()}
-    return value
 
 
 MARTS = {
@@ -83,22 +71,18 @@ MARTS = {
 }
 
 
-def test_live_sql_returns_the_snapshot_payload(tmp_path: Path) -> None:
-    """The live statement yields what the snapshot queries do, as JSON, rows in the same order."""
+def test_live_queries_return_the_snapshot_payload(tmp_path: Path) -> None:
+    """Each live query, run on its own as the page does, yields that part of the snapshot payload."""
     con = duckdb.connect(str(tmp_path / "w.duckdb"))
     con.execute("create schema marts")
     for name, sql in MARTS.items():
         con.execute(f"create table marts.{name} as {sql}")
 
-    snapshot: dict[str, Any] = {key: data._rows(con, sql.format(days=30)) for key, sql in data.QUERIES.items()}
+    queries = data.live_queries(days=30)
+    assert set(queries) == set(data.QUERIES)
+    for key, sql in queries.items():
+        assert data._rows(con, sql) == data._rows(con, data.QUERIES[key].format(days=30)), key
     for key in data.SINGLE_ROW:
-        snapshot[key] = snapshot[key][0] if snapshot[key] else None
-    row = con.execute(data.live_sql(days=30)).fetchone()
-    assert row is not None
-    live = json.loads(row[0])
-
-    assert set(live) == {*data.QUERIES, "built_at"}
-    for key in data.QUERIES:
-        assert _same_timestamps(live[key]) == _same_timestamps(snapshot[key]), key
-    assert [r["activity_name"] for r in live["recent"]] == [f"Run {i}" for i in range(8)]
-    assert [r["activity_name"] for r in live["runs"]] == [f"Run {i}" for i in reversed(range(10))]
+        assert len(data._rows(con, queries[key])) <= 1, key
+    assert [r["activity_name"] for r in data._rows(con, queries["recent"])] == [f"Run {i}" for i in range(8)]
+    assert [r["activity_name"] for r in data._rows(con, queries["runs"])] == [f"Run {i}" for i in reversed(range(10))]

@@ -1,7 +1,8 @@
 """Fills the page template, producing one self-contained HTML file: with the data
-embedded (a snapshot), or with a query the page runs through a MotherDuck connector (live)."""
+embedded (a snapshot), or with queries the page runs through a MotherDuck connector (live)."""
 
 import json
+from collections.abc import Iterable
 from importlib import resources
 from typing import Any
 
@@ -36,7 +37,15 @@ def render(data: dict[str, Any]) -> str:
     return _fill(data, None)
 
 
-def render_live(database: str, sql: str, context: dict[str, Any]) -> str:
-    """A page that runs `sql` (see data.live_sql) on the MotherDuck `database` when opened;
-    `context` (see data.context) is embedded as is."""
-    return _fill(None, {"server": LIVE_SERVER, "tool": LIVE_TOOL, "database": database, "sql": sql, **context})
+def render_live(database: str, queries: dict[str, str], single_row: Iterable[str], context: dict[str, Any]) -> str:
+    """A page that runs `queries` (see data.live_queries) on the MotherDuck `database` when
+    opened; the `single_row` ones give one row or null. `context` (see data.context) is embedded as is."""
+    live = {
+        "server": LIVE_SERVER,
+        "tool": LIVE_TOOL,
+        "database": database,
+        "queries": queries,
+        "single_row": sorted(single_row),
+        **context,
+    }
+    return _fill(None, live)

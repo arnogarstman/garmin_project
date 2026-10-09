@@ -2,7 +2,7 @@
 
 Reads marts only, like the dashboard. Aggregation for display (weekly sums,
 weekly samples of predictions) happens here; modelling stays in dbt. The same
-queries feed the live page as one SQL statement that returns the payload as JSON.
+queries feed the live page, which runs each one through a connector.
 """
 
 import datetime as dt
@@ -59,17 +59,17 @@ QUERIES: dict[str, str] = {
         where activity_date > current_date - interval {days} day
     """,
     "recent": """
-        select started_at_local, activity_date, activity_name, activity_type, round(distance_km, 2) as km,
+        select activity_date, activity_name, activity_type, round(distance_km, 2) as km,
                round(duration_min, 1) as min, round(pace_min_per_km, 2) as pace, avg_hr
         from marts.fct_activities
         order by started_at_local desc
         limit 8
     """,
     "runs": """
-        select started_at_local, activity_date, activity_name, activity_type, round(distance_km, 1) as km,
-               round(duration_min, 1) as min, round(pace_min_per_km, 2) as pace, avg_hr,
-               hr_zone_1_min as z1, hr_zone_2_min as z2, hr_zone_3_min as z3, hr_zone_4_min as z4,
-               hr_zone_5_min as z5
+        select activity_date, activity_name, round(distance_km, 1) as km, round(duration_min, 1) as min,
+               round(pace_min_per_km, 2) as pace, round(avg_hr) as avg_hr, round(hr_zone_1_min, 1) as z1,
+               round(hr_zone_2_min, 1) as z2, round(hr_zone_3_min, 1) as z3, round(hr_zone_4_min, 1) as z4,
+               round(hr_zone_5_min, 1) as z5
         from marts.fct_activities
         where activity_date > current_date - interval {days} day and activity_type ilike '%run%'
         order by started_at_local
@@ -80,19 +80,6 @@ QUERIES: dict[str, str] = {
 
 # Single-row queries: the payload holds the row itself, or null.
 SINGLE_ROW = frozenset({"status", "zones"})
-
-# Row order of each list query, applied again when the live statement aggregates
-# the rows into a JSON list (aggregation does not keep a subquery's order).
-LIST_ORDER: dict[str, str] = {
-    "daily": "d",
-    "weekly": "wk",
-    "pred": "d",
-    "races": "race_date",
-    "types": "n desc",
-    "recent": "started_at_local desc",
-    "runs": "started_at_local",
-    "lag": "metric",
-}
 
 
 def _jsonable(value: Any) -> Any:
@@ -126,16 +113,7 @@ def context() -> dict[str, Any]:
     return {"goal": goal.model_dump(mode="json") if goal else None, "profile": config.data_profile()}
 
 
-def live_sql(days: int = 365) -> str:
-    """One statement returning the marts part of the payload as a single JSON value,
-    with `built_at` set to the query time. The live page runs it through a connector."""
-    parts = []
-    for key, sql in QUERIES.items():
-        sub = sql.format(days=int(days)).strip()
-        if key in SINGLE_ROW:
-            expr = f"(select q from ({sub}) q limit 1)"
-        else:
-            expr = f"(select coalesce(list(q order by q.{LIST_ORDER[key]}), []) from ({sub}) q)"
-        parts.append(f"'{key}': {expr}")
-    parts.append("'built_at': strftime(now() at time zone 'UTC', '%Y-%m-%dT%H:%M:%SZ')")
-    return "select to_json({" + ", ".join(parts) + "})::varchar as payload"
+def live_queries(days: int = 365) -> dict[str, str]:
+    """The payload's queries as the live page runs them, one connector call each: a
+    connector caps the size of one result, so the marts do not travel as one value."""
+    return {key: sql.format(days=int(days)).strip() for key, sql in QUERIES.items()}
