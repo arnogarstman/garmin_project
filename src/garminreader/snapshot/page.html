@@ -70,27 +70,21 @@ footer{font-size:.8rem;color:var(--muted)}
 .calkeys{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;font-size:.8rem;color:var(--ink2)}
 .calkeys span{display:inline-flex;align-items:center;gap:6px}
 .bub{display:block;width:calc(var(--k) * var(--r));max-width:100%;aspect-ratio:1;border-radius:50%;background:color-mix(in srgb,var(--c1) 85%,transparent);flex:none}
-.mgrid{display:grid;grid-template-columns:64px repeat(7,minmax(0,1fr));gap:3px}
-.mgrid .dow{position:sticky;top:0;z-index:1;background:var(--bg);font:500 .66rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:4px 4px 2px}
-.mlab{display:grid;align-content:start;gap:10px;padding-top:2px;min-width:0}
-.mlab div{display:grid;line-height:1.2}
-.mlab b{font:600 1.05rem var(--display);color:var(--ink)}
-.mlab .yr,.mlab .tot{font:500 .68rem var(--mono);color:var(--muted)}
-.mlab .tot{color:var(--ink2)}
+.month{display:grid;gap:6px}
+.month header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px}
+.month .tot{font:500 .78rem var(--mono);color:var(--ink2)}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:3px}
 .day{min-height:112px;border:1px solid var(--grid);border-radius:4px;padding:4px 6px;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
-.day.alt{background:var(--panel)}
-.day.first{border-color:var(--ink2)}
 .day.pad{border-color:transparent;background:transparent}
 .day .dn{font:500 .7rem var(--mono);color:var(--muted)}
-.day.first .dn{color:var(--ink)}
+.day .dw{color:var(--muted);font-size:.62rem;text-transform:uppercase;letter-spacing:.06em}
 .day.today .dn{color:var(--ink);font-weight:700}
-.day.future{opacity:.45}
 .day .runs{flex:1;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;min-width:0}
 .day .run{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;max-width:100%}
 .day .km{font:600 .9rem/1.1 var(--display);font-variant-numeric:tabular-nums;color:var(--ink)}
 .day .km small{font-size:.7rem;color:var(--ink2);font-weight:500;margin-left:2px}
 .day .nm{font-size:.7rem;line-height:1.2;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-@media (max-width:640px){.cal{--k:7.4px}.day{min-height:66px;padding:2px}.day .runs{gap:2px}.day .nm{display:none}.day .km{font-size:.72rem}.day .km small{display:none}.mgrid{grid-template-columns:34px repeat(7,minmax(0,1fr));gap:2px}.mgrid .dow{padding:2px 0;text-align:center}.mlab b{font-size:.85rem}.mlab .yr,.mlab .tot{font-size:.58rem}}
+@media (max-width:640px){.cal{--k:7.4px}.day{min-height:66px;padding:2px}.day .runs{gap:2px}.day .nm{display:none}.day .km{font-size:.72rem}.day .km small{display:none}.mgrid{grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:2px}.day .dw{display:block;font-size:.55rem}}
 .livestate{font-size:.88rem;border-left:3px solid var(--c1);padding:4px 10px}
 .livestate.err{border-color:var(--warn);color:var(--ink)}
 .livebtn{font:500 .85rem var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--grid);border-radius:4px;padding:6px 12px;width:max-content;cursor:pointer}
