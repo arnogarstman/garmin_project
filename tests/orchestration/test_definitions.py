@@ -27,7 +27,7 @@ def test_raw_data_feeds_the_dbt_models(monkeypatch: pytest.MonkeyPatch) -> None:
     defs = _load(monkeypatch, "prod").defs
     assert assets.RAW_KEY in _deps(defs, dg.AssetKey(["staging", "stg_garmin__sleep"]))
     keys = {s.key for s in defs.resolve_all_asset_specs()}
-    assert {assets.RAW_KEY, dg.AssetKey(["marts", "fct_race_results"]), dg.AssetKey("published_warehouse")} <= keys
+    assert {assets.RAW_KEY, dg.AssetKey(["marts", "fct_race_results"])} <= keys
 
 
 def test_real_data_is_partitioned_by_day(monkeypatch: pytest.MonkeyPatch) -> None:

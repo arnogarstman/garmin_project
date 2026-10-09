@@ -3,7 +3,6 @@ name = "garminreader"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "adlfs>=2024.7",
     "anthropic>=1.11.0",
     "dagster>=1.11",
     "dagster-dbt>=0.27",
@@ -70,5 +69,5 @@ strict = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["garminconnect.*", "plotly.*", "dbt.*", "fsspec.*", "adlfs.*", "dagster_dbt.*"]
+module = ["garminconnect.*", "plotly.*", "dbt.*", "fsspec.*", "dagster_dbt.*"]
 ignore_missing_imports = true

@@ -23,7 +23,7 @@ daily_refresh = dg.define_asset_job(
     JOB_NAME,
     selection=dg.AssetSelection.all(),
     # Partitioned by day with real data: inferred from the raw asset.
-    description="Ingest, build every dbt model and its tests, run the checks, and publish the warehouse.",
+    description="Ingest, build every dbt model and its tests, and run the checks.",
 )
 
 # Real data: the latest partition, which is today since the partitions end one day ahead.
@@ -34,7 +34,7 @@ schedule = (
 )
 
 defs = dg.Definitions(
-    assets=[raw_asset, assets.dbt_models, assets.published_warehouse],
+    assets=[raw_asset, assets.dbt_models],
     asset_checks=[checks.raw_is_fresh, checks.garmin_signals_are_fresh],
     jobs=[daily_refresh],
     schedules=[schedule],

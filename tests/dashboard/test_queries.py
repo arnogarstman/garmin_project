@@ -11,7 +11,7 @@ from garminreader.dashboard import queries
 @pytest.fixture
 def warehouse(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "w.duckdb"
-    monkeypatch.setattr(config, "duckdb_path", lambda: path)
+    monkeypatch.setattr(config, "database", lambda: str(path))
     return path
 
 

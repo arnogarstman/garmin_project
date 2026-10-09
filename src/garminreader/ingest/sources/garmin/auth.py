@@ -14,9 +14,9 @@ TOKEN_DIR = config.garmin_token_dir()
 
 def try_resume_session() -> Garmin | None:
     """Attempt to restore a session purely from cached tokens: the GARMINTOKENS
-    environment variable (the token JSON, as the cloud job gets it from Key Vault)
-    or else the token directory on disk. Returns a ready-to-use client, or None
-    if there is no valid cached session."""
+    environment variable (the token JSON, for unattended runs) or else the token
+    directory on disk. Returns a ready-to-use client, or None if there is no valid
+    cached session."""
     tokenstore = os.getenv("GARMINTOKENS") or (str(TOKEN_DIR) if TOKEN_DIR.exists() else None)
     if tokenstore is None:
         return None

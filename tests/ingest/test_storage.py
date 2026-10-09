@@ -3,46 +3,47 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import duckdb
 import pytest
 
 from garminreader.ingest import storage
 from garminreader.ingest.sources.base import RawRecord
 
 
+def _db(tmp_path: Path) -> str:
+    return str(tmp_path / "w.duckdb")
+
+
 def _store(tmp_path: Path) -> storage.RawStore:
-    return storage.RawStore.from_url(str(tmp_path / "raw"))
+    return storage.RawStore(_db(tmp_path))
+
+
+def _query(tmp_path: Path, sql: str) -> list[tuple[Any, ...]]:
+    with duckdb.connect(_db(tmp_path), read_only=True) as con:
+        return con.execute(sql).fetchall()
 
 
 def _rows(tmp_path: Path, source: str = "demo") -> list[dict[str, Any]]:
-    """Every stored record of the source, oldest load first, with its endpoint from the partition path."""
-    rows = []
-    for path in (tmp_path / "raw" / source).glob("endpoint=*/load_date=*/*.jsonl"):
-        endpoint = path.parts[-3].removeprefix("endpoint=")
-        rows += [json.loads(line) | {"endpoint": endpoint} for line in path.read_text().splitlines()]
-    return sorted(rows, key=lambda r: (r["loaded_at"], r["endpoint"]))
-
-
-def _markers(tmp_path: Path, source: str = "demo") -> list[dict[str, Any]]:
-    markers = [json.loads(p.read_text()) for p in (tmp_path / "raw" / "_loads").glob(f"source={source}/*/*.json")]
-    return sorted(markers, key=lambda m: m["loaded_at"])
+    """Every stored record of the source, oldest load first, with params and payload parsed."""
+    rows = _query(
+        tmp_path,
+        f"select load_id, endpoint, params, payload from raw.payloads where source = '{source}' order by loaded_at",
+    )
+    return [{"load_id": r[0], "endpoint": r[1], "params": json.loads(r[2]), "payload": json.loads(r[3])} for r in rows]
 
 
 def test_load_keeps_payload_verbatim(tmp_path: Path) -> None:
     """The raw layer stores the API response exactly as received.
 
-    Nested objects and nulls must survive the round trip into the raw files unchanged, and
-    the params are stored next to the payload, partitioned by endpoint and load date. All
-    parsing happens later in dbt, never here.
+    Nested objects and nulls must survive the round trip into the raw table unchanged, and
+    the params are stored next to the payload with the endpoint. All parsing happens later in
+    dbt, never here.
     """
     payload = {"checkins": [{"id": 1, "nested": {"a": None}}]}
     result = _store(tmp_path).load("demo", [RawRecord("checkins", payload, {"page": 0})])
     [row] = _rows(tmp_path)
     assert (result.fetched, result.inserted) == (1, 1)
-    assert row["endpoint"] == "checkins"
-    assert row["params"] == {"page": 0}
-    assert row["payload"] == payload
-    today = datetime.now(UTC).date().isoformat()
-    assert (tmp_path / "raw" / "demo" / "endpoint=checkins" / f"load_date={today}" / f"{result.load_id}.jsonl").exists()
+    assert row == {"load_id": result.load_id, "endpoint": "checkins", "params": {"page": 0}, "payload": payload}
 
 
 def test_unchanged_records_are_skipped(tmp_path: Path) -> None:
@@ -59,7 +60,9 @@ def test_unchanged_records_are_skipped(tmp_path: Path) -> None:
     store.load("demo", records)
     again = store.load("demo", records)
     assert (again.fetched, again.inserted) == (2, 0)
-    assert [(r["params"], r["payload"]) for r in _rows(tmp_path)] == [(r.params, r.payload) for r in records]
+    assert sorted((str(r["params"]), str(r["payload"])) for r in _rows(tmp_path)) == sorted(
+        (str(r.params), str(r.payload)) for r in records
+    )
 
 
 def test_changed_records_are_appended(tmp_path: Path) -> None:
@@ -99,24 +102,32 @@ def test_params_key_order_does_not_matter(tmp_path: Path) -> None:
     assert store.load("demo", [RawRecord("range", 1, {"b": 2, "a": 1})]).inserted == 0
 
 
-def test_every_run_is_logged(tmp_path: Path) -> None:
-    """Each load run writes one marker to _loads, including runs that stored nothing.
+def test_sources_do_not_share_change_detection(tmp_path: Path) -> None:
+    """The same endpoint and params under another source is a different record."""
+    store = _store(tmp_path)
+    store.load("demo", [RawRecord("day", 1, {"date": "2026-01-01"})])
+    assert store.load("other", [RawRecord("day", 1, {"date": "2026-01-01"})]).inserted == 1
 
-    The marker holds fetched and stored counts per run, so a run that found no changes is
+
+def test_every_run_is_logged(tmp_path: Path) -> None:
+    """Each load run writes one row to raw.loads, including runs that stored nothing.
+
+    The row holds fetched and stored counts per run, so a run that found no changes is
     still visible as (fetched=1, inserted=0) rather than leaving no trace.
     """
     store = _store(tmp_path)
     store.load("demo", [RawRecord("a", 1)])
     store.load("demo", [RawRecord("a", 1)])
-    assert [(m["records_fetched"], m["records_inserted"]) for m in _markers(tmp_path)] == [(1, 1), (1, 0)]
+    logged = _query(tmp_path, "select records_fetched, records_inserted from raw.loads order by loaded_at")
+    assert logged == [(1, 1), (1, 0)]
 
 
 def test_failed_load_writes_nothing(tmp_path: Path) -> None:
-    """A source that fails partway through leaves no files at all.
+    """A source that fails partway through leaves no records and no run-log row.
 
     The fake source yields one record and then raises. The error must propagate, and since
-    the source is drained before anything is written, there is no data file and no marker. A
-    logged half-finished run would move the resume point forward, and the next ingest would
+    the source is drained before anything is written, nothing is stored. A logged
+    half-finished run would move the resume point forward, and the next ingest would
     silently skip the data that was never loaded.
     """
 
@@ -124,44 +135,26 @@ def test_failed_load_writes_nothing(tmp_path: Path) -> None:
         yield RawRecord("a", 1)
         raise RuntimeError("source died")
 
+    store = _store(tmp_path)
     with pytest.raises(RuntimeError):
-        _store(tmp_path).load("demo", broken())
-    assert not (tmp_path / "raw").exists() or not any((tmp_path / "raw").rglob("*.json*"))
+        store.load("demo", broken())
+    assert store.last_loaded_at("demo") is None
+    assert _rows(tmp_path) == []
 
 
-def test_files_without_a_marker_are_not_committed(tmp_path: Path) -> None:
-    """Data files of a load that never wrote its marker do not count as stored.
-
-    This is the crash case between writing data and writing the marker: dbt ignores such
-    records, and so must change detection, or the next run would skip re-storing them.
-    """
+def test_clear_removes_one_source_only(tmp_path: Path) -> None:
+    """Rebuilding the demo fixture clears its own source and leaves others untouched."""
     store = _store(tmp_path)
-    store.load("demo", [RawRecord("day", {"steps": 1}, {"date": "2026-01-01"})])
-    orphan = tmp_path / "raw" / "demo" / "endpoint=day" / "load_date=2026-01-02" / "dead-load.jsonl"
-    orphan.parent.mkdir(parents=True)
-    orphan.write_text(json.dumps({"load_id": "dead-load", "params": {"date": "2026-01-01"}, "payload": {"steps": 9}}))
-    (tmp_path / "raw" / "_state").rename(tmp_path / "state-gone")  # force a rebuild from the files
-
-    again = store.load("demo", [RawRecord("day", {"steps": 1}, {"date": "2026-01-01"})])
-    assert again.inserted == 0  # the committed version {"steps": 1} is the latest, not the orphan
-
-
-def test_state_is_rebuilt_from_raw_files(tmp_path: Path) -> None:
-    """Without its index, the store recomputes change detection and the resume point from the raw files.
-
-    The raw files are the source of truth; the index only saves reading them on every run.
-    """
-    store = _store(tmp_path)
-    store.load("demo", [RawRecord("day", {"steps": 1}, {"date": "2026-01-01"})])
-    last = store.last_loaded_at("demo")
-    for state_file in (tmp_path / "raw" / "_state").rglob("*.json"):
-        state_file.unlink()
-    assert store.last_loaded_at("demo") == last
-    assert store.load("demo", [RawRecord("day", {"steps": 1}, {"date": "2026-01-01"})]).inserted == 0
+    store.load("demo", [RawRecord("a", 1)])
+    store.load("other", [RawRecord("a", 1)])
+    store.clear("demo")
+    assert store.last_loaded_at("demo") is None
+    assert _rows(tmp_path, "demo") == []
+    assert len(_rows(tmp_path, "other")) == 1
 
 
 def test_rejects_unsafe_names(tmp_path: Path) -> None:
-    """Source and endpoint names become directories that dbt globs over, so anything but a plain identifier fails."""
+    """Source and endpoint names are plain identifiers, so anything else fails before writing."""
     store = _store(tmp_path)
     with pytest.raises(ValueError):
         store.load("../etc", [])

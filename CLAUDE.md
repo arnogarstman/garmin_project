@@ -25,10 +25,11 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 
 ## Layout
 
-- `src/garminreader/ingest/`: sources (`sources/<name>/`), registry in `sources/__init__.py`, raw store in `storage.py`. Raw data is NDJSON files under `RAW_ROOT` (`<source>/endpoint=/load_date=/<load_id>.jsonl`, committed by a `_loads/` marker), local or `abfs://` in Azure; dbt reads the files directly.
-- `transform/`: dbt project. `staging/<source>/` tables (newest load wins; tables so the warehouse never depends on raw files), `marts/` tables (`fct_*`, `rpt_*`).
-- `src/garminreader/orchestration/`: Dagster assets (raw partitioned by day, dbt via dagster-dbt, published warehouse) and checks.
-- `infra/`: Terraform for Azure (see `infra/README.md`). `.github/workflows/`: CI, Terraform plan, deploy.
+- `src/garminreader/ingest/`: sources (`sources/<name>/`), registry in `sources/__init__.py`, raw store in `storage.py`. Raw data is the `raw.payloads` table (JSON payload and params plus load metadata) with the `raw.loads` run log, written in one transaction per load.
+- `src/garminreader/db.py`: the only way to open the database (`DATABASE` in config): a local DuckDB file, or MotherDuck as `md:<name>` with `MOTHERDUCK_TOKEN`.
+- `transform/`: dbt project. `staging/<source>/` tables (newest load wins), `marts/` tables (`fct_*`, `rpt_*`).
+- `src/garminreader/orchestration/`: Dagster assets (raw partitioned by day, dbt via dagster-dbt) and checks.
+- `.github/workflows/`: CI.
 - `src/garminreader/dashboard/`: Streamlit app. `queries.py` is its only database access and reads marts only.
 - `src/garminreader/config.py`: all settings, from `.env` (see `.env.example`).
 - `src/garminreader/snapshot/`: `uv run snapshot` renders the marts into one self-contained HTML page (template `page.html` + `page.js`), for hosting as a static page such as a Claude artifact. Reads marts only.
@@ -41,12 +42,11 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `uv run transform [dbt args]`: dbt against the configured warehouse; defaults to `build`.
 - `uv run dashboard`
 - `DATA_PROFILE=demo uv run synthesize [--days 365] [--seed 42]`: rebuilds the demo warehouse from scratch, ending today; follow with `DATA_PROFILE=demo uv run transform`.
-- `uv run pipeline [--partition YYYY-MM-DD]`: the Dagster job in process (ingest, dbt build, checks, publish); what the cloud job runs.
-- `uv run snapshot [--out PATH] [--days 365]`: static HTML snapshot of the marts; defaults to `snapshot.html` next to the warehouse (gitignored with the data).
+- `uv run pipeline [--partition YYYY-MM-DD]`: the Dagster job in process (ingest, dbt build, checks); what the daily run executes.
+- `uv run snapshot [--out PATH] [--days 365]`: static HTML snapshot of the marts; defaults to `data/[demo/]snapshot.html` (gitignored with the data).
 - `uv run dagster dev`: Dagster UI for lineage, partitions and backfills.
-- `uv run explore`: DuckDB UI on a snapshot of the warehouse taken at startup; never blocks ingest or transform.
+- `uv run explore`: DuckDB UI on a snapshot of a local warehouse taken at startup; never blocks ingest or transform. For MotherDuck use its web UI.
 - Checks: `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest`
-- Infra checks (in `infra/`): `terraform fmt -check -recursive`, `terraform validate` per root, `tflint --recursive --config "$PWD/.tflint.hcl"`, `checkov -d .`
 
 ## Engineering conventions
 

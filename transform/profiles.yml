@@ -1,18 +1,9 @@
-# DUCKDB_PATH and RAW_ROOT are set by `uv run transform` from the project config.
-# DBT_TARGET=azure reads raw files from Azure Data Lake Storage (abfs://) through
-# fsspec, authenticating with the managed identity (DefaultAzureCredential).
+# DUCKDB_PATH is set by `uv run transform` from the project config: a local file,
+# or md:<name> for MotherDuck (token in MOTHERDUCK_TOKEN).
 garminreader:
-  target: "{{ env_var('DBT_TARGET', 'local') }}"
+  target: local
   outputs:
     local:
       type: duckdb
       path: "{{ env_var('DUCKDB_PATH') }}"
       threads: 4
-    azure:
-      type: duckdb
-      path: "{{ env_var('DUCKDB_PATH') }}"
-      threads: 4
-      filesystems:
-        - fs: abfs
-          account_name: "{{ env_var('AZURE_STORAGE_ACCOUNT_NAME', '') }}"
-          anon: false

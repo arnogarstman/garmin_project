@@ -11,11 +11,3 @@ updates:
     groups:
       python:
         patterns: ["*"]
-  - package-ecosystem: docker
-    directory: /
-    schedule:
-      interval: weekly
-  - package-ecosystem: terraform
-    directories: ["/infra/bootstrap", "/infra/envs/*"]
-    schedule:
-      interval: weekly

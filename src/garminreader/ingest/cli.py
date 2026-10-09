@@ -32,7 +32,7 @@ def main() -> None:
 
     source = SOURCES[args.source]()
     since: date | None = args.since
-    store = storage.RawStore.from_url(config.raw_root())
+    store = storage.RawStore()
     if since is None:
         last = store.last_loaded_at(source.name)
         since = last.date() - timedelta(days=REFETCH_DAYS) if last else None

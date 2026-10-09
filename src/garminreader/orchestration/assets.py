@@ -1,5 +1,5 @@
-"""The pipeline's assets: raw Garmin data (bronze), the dbt models (silver and
-gold), and the published warehouse the dashboard reads.
+"""The pipeline's assets: raw Garmin data (bronze) and the dbt models (silver and
+gold), all in the configured database.
 
 With real data, raw is partitioned by day, so a backfill is "materialize these
 partitions" and a failed day can be re-run on its own. Each partition fetches
@@ -8,7 +8,6 @@ late watch syncs; the raw store's change detection drops what did not change.
 The demo has one unpartitioned raw asset that regenerates the simulated year.
 """
 
-import os
 from collections.abc import Iterator
 from datetime import date, timedelta
 from typing import Any
@@ -17,7 +16,7 @@ import dagster as dg
 from dagster_dbt import DbtCliResource, DbtProject, dbt_assets
 from dbt.cli.main import dbtRunner
 
-from garminreader import config, warehouse
+from garminreader import config
 from garminreader.ingest.sources.garmin.source import GarminSource
 from garminreader.ingest.storage import RawStore
 from garminreader.transform import configure_dbt_env
@@ -34,7 +33,7 @@ def _raw_specs(description: str, partitions_def: dg.PartitionsDefinition | None 
     common = {"group_name": "ingest", "kinds": {"python", "json"}, "partitions_def": partitions_def}
     return [
         dg.AssetSpec(RAW_KEY, description=description, **common),  # type: ignore[arg-type]
-        dg.AssetSpec(LOADS_KEY, description="Run log: one marker per successful load.", **common),  # type: ignore[arg-type]
+        dg.AssetSpec(LOADS_KEY, description="Run log: one row per successful load.", **common),  # type: ignore[arg-type]
     ]
 
 
@@ -45,14 +44,12 @@ def _results(metadata: dict[str, Any]) -> Iterator[dg.MaterializeResult[None]]:
 
 @dg.multi_asset(
     name="garmin_raw",
-    specs=_raw_specs("Raw Garmin Connect responses for one day (and the day before), as NDJSON files.", daily),
+    specs=_raw_specs("Raw Garmin Connect responses for one day (and the day before), in raw.payloads.", daily),
     retry_policy=dg.RetryPolicy(max_retries=2, delay=60, backoff=dg.Backoff.EXPONENTIAL),
 )
 def garmin_raw(context: dg.AssetExecutionContext) -> Iterator[dg.MaterializeResult[None]]:
     day = date.fromisoformat(context.partition_key)
-    result = RawStore.from_url(config.raw_root()).load(
-        "garmin", GarminSource().extract(since=day - timedelta(days=1), until=day)
-    )
+    result = RawStore().load("garmin", GarminSource().extract(since=day - timedelta(days=1), until=day))
     yield from _results({"load_id": result.load_id, "fetched": result.fetched, "stored": result.inserted})
 
 
@@ -71,7 +68,7 @@ configure_dbt_env()
 dbt_project = DbtProject(
     project_dir=config.dbt_project_dir(),
     profiles_dir=config.dbt_project_dir(),
-    target=os.getenv("DBT_TARGET", "local"),
+    target="local",
 )
 
 
@@ -85,7 +82,7 @@ def _manifest_is_stale() -> bool:
 
 if _manifest_is_stale():
     # dbt-core in process, not dagster-dbt's preparer: that one prefers a dbt Fusion (dbtf)
-    # binary on PATH. The Docker image ships a manifest prepared at build time.
+    # binary on PATH.
     parsed = dbtRunner().invoke(["parse", "--quiet", "--target", dbt_project.target or "local"])
     if not parsed.success:
         raise RuntimeError(f"dbt parse failed: {parsed.exception}")
@@ -95,18 +92,3 @@ if _manifest_is_stale():
 def dbt_models(context: dg.AssetExecutionContext, dbt: DbtCliResource):  # type: ignore[no-untyped-def]
     """Every dbt model, with its tests as asset checks."""
     yield from dbt.cli(["build"], context=context).stream()
-
-
-@dg.asset(
-    deps=[dbt_models],
-    group_name="serve",
-    kinds={"duckdb"},
-    description="The built warehouse, uploaded to object storage for the dashboard. A no-op locally.",
-)
-def published_warehouse() -> dg.MaterializeResult[None]:
-    url = config.warehouse_url()
-    if url is None:
-        return dg.MaterializeResult(metadata={"published": False, "reason": "WAREHOUSE_URL not set"})
-    local = config.duckdb_path()
-    warehouse.publish(local, url)
-    return dg.MaterializeResult(metadata={"published": True, "url": url, "size_mb": local.stat().st_size / 1e6})
