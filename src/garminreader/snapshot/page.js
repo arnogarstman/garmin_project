@@ -175,7 +175,7 @@ function renderPage(D) {
     }
   }
 
-  // Run calendar: one month grid per month with runs, newest first. Each run is a bubble whose
+  // Run calendar: one month grid per month, newest first. Each run is a bubble whose
   // area is proportional to its distance (diameter grows with the square root), on one fixed scale.
   {
     const runs = D.runs || [], byDay = new Map();
@@ -183,8 +183,10 @@ function renderPage(D) {
     const bubble = km => `<span class="bub" style="--r:${Math.sqrt(Math.max(km || 0, 0.25)).toFixed(3)}"></span>`;
     const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const today = iso(new Date(x1)), months = [];
-    if (runs.length) {
-      const first = new Date(t(runs[0].activity_date)), last = new Date(x1);
+    // Every month of the past year, with or without runs, and further back when runs go further back.
+    {
+      const last = new Date(x1), yearAgo = new Date(last.getFullYear(), last.getMonth() - 11, 1);
+      const first = runs.length ? new Date(Math.min(t(runs[0].activity_date), yearAgo.getTime())) : yearAgo;
       for (let m = new Date(last.getFullYear(), last.getMonth(), 1); m >= new Date(first.getFullYear(), first.getMonth(), 1); m.setMonth(m.getMonth() - 1)) months.push(new Date(m));
     }
     $('calkeys').innerHTML = runs.length ? 'Bubble area is proportional to distance:' + [5, 10, 21.1].map(km => `<span>${bubble(km)}${km} km</span>`).join('') : '';
@@ -200,7 +202,7 @@ function renderPage(D) {
           (rs.length ? '<div class="runs">' + rs.map(r => `<div class="run">${bubble(r.km)}<span class="km">${num(r.km) ? r.km.toFixed(1) : '–'}<small>km</small></span><span class="nm">${esc(r.activity_name)}</span></div>`).join('') + '</div>' : '') + '</div>';
       }
       return `<div class="month"><header><h3>${MON[mo]} ${y}</h3><span class="tot">${count} run${count === 1 ? '' : 's'} · ${km.toFixed(1)} km</span></header><div class="mgrid">${dows}${cells}</div></div>`;
-    }).join('') || '<p class="cap">No runs in this period.</p>';
+    }).join('');
   }
 
   // Recent activities
