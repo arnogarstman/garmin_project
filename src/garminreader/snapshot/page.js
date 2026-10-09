@@ -175,42 +175,62 @@ function renderPage(D) {
     }
   }
 
-  // Run calendar: one block per month, newest month on top; within a month one row per week,
-  // newest week on top, Monday to Sunday. A month's top row and the next block's bottom row thus
-  // hold the two halves of the week they share. Each run is a bubble whose area is proportional
-  // to its distance (diameter grows with the square root), on one fixed scale.
+  // Run calendar: one continuous grid of weeks, Monday to Sunday, newest week on top, so the
+  // last day of a month and the first of the next sit side by side in the week they share. Each
+  // month is headed above its own days in its topmost week, alternates in tint and marks its 1st. Each run
+  // is a bubble whose area is proportional to its distance (diameter grows with the square root),
+  // on one fixed scale.
   {
-    const runs = D.runs || [], byDay = new Map();
-    for (const r of runs) { const k = r.activity_date.slice(0, 10); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(r); }
-    const bubble = km => `<span class="bub" style="--r:${Math.sqrt(Math.max(km || 0, 0.25)).toFixed(3)}"></span>`;
+    const runs = D.runs || [], byDay = new Map(), totals = new Map();
     const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const monday = d => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7);
-    const last = new Date(x1), today = iso(last), months = [];
-    // Every month of the past year, with or without runs, and further back when runs go further back.
-    {
-      const yearAgo = new Date(last.getFullYear(), last.getMonth() - 11, 1);
-      const first = runs.length ? new Date(Math.min(t(runs[0].activity_date), yearAgo.getTime())) : yearAgo;
-      for (let m = new Date(last.getFullYear(), last.getMonth(), 1); m >= new Date(first.getFullYear(), first.getMonth(), 1); m.setMonth(m.getMonth() - 1)) months.push(new Date(m));
+    for (const r of runs) {
+      const k = r.activity_date.slice(0, 10), m = k.slice(0, 7);
+      if (!byDay.has(k)) byDay.set(k, []);
+      byDay.get(k).push(r);
+      const tot = totals.get(m) || { n: 0, km: 0 };
+      totals.set(m, { n: tot.n + 1, km: tot.km + (r.km || 0) });
     }
+    const bubble = km => `<span class="bub" style="--r:${Math.sqrt(Math.max(km || 0, 0.25)).toFixed(3)}"></span>`;
+    const monday = d => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7);
+    // Every month of the past year, with or without runs, and further back when runs go further back.
+    const last = new Date(x1), today = iso(last), yearAgo = new Date(last.getFullYear(), last.getMonth() - 11, 1);
+    const firstRun = runs.length ? new Date(t(runs[0].activity_date)) : yearAgo;
+    const start = firstRun < yearAgo ? new Date(firstRun.getFullYear(), firstRun.getMonth(), 1) : yearAgo;
     $('calkeys').innerHTML = runs.length ? 'Bubble area is proportional to distance:' + [5, 10, 21.1].map(km => `<span>${bubble(km)}${km} km</span>`).join('') : '';
-    const dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<span class="dow">${d}</span>`).join('');
-    $('cal').innerHTML = months.map(m => {
-      const y = m.getFullYear(), mo = m.getMonth(), monthEnd = new Date(y, mo + 1, 0);
-      const end = monthEnd > last ? last : monthEnd;
-      let cells = '', km = 0, count = 0;
-      for (let w = monday(end); w >= monday(m); w = new Date(w.getFullYear(), w.getMonth(), w.getDate() - 7)) {
-        for (let i = 0; i < 7; i++) {
-          const day = new Date(w.getFullYear(), w.getMonth(), w.getDate() + i), key = iso(day);
-          if (day.getMonth() !== mo || day > end) { cells += '<span class="day pad"></span>'; continue; }
-          const rs = byDay.get(key) || [];
-          km += rs.reduce((s, r) => s + (r.km || 0), 0); count += rs.length;
-          const tip = rs.map(r => `${r.activity_name}: ${num(r.km) ? r.km.toFixed(1) + ' km' : ''}${num(r.min) ? ' in ' + hms(r.min * 60) : ''}${num(r.pace) ? ', ' + pace(r.pace) + ' /km' : ''}`).join('\n');
-          cells += `<div class="day${key === today ? ' today' : ''}"${tip ? ` title="${esc(tip)}"` : ''}><span class="dn">${day.getDate()}</span>` +
-            (rs.length ? '<div class="runs">' + rs.map(r => `<div class="run">${bubble(r.km)}<span class="km">${num(r.km) ? r.km.toFixed(1) : '–'}<small>km</small></span><span class="nm">${esc(r.activity_name)}</span></div>`).join('') + '</div>' : '') + '</div>';
+    const headed = new Set();
+    let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<span class="dow">${d}</span>`).join('');
+    for (let w = monday(last); w >= monday(start); w = new Date(w.getFullYear(), w.getMonth(), w.getDate() - 7)) {
+      const week = [...Array(7)].map((_, i) => new Date(w.getFullYear(), w.getMonth(), w.getDate() + i));
+      // Head each month above its topmost week, spanning only its own days in that week, so the
+      // heading and its rule mark exactly where the month starts.
+      const segs = [];
+      week.forEach((d, i) => {
+        if (d < start || d > last) return;
+        const m = iso(d).slice(0, 7), seg = segs[segs.length - 1];
+        if (seg && seg.m === m) seg.b = i; else segs.push({ m, a: i, b: i });
+      });
+      const heads = segs.filter(g => !headed.has(g.m));
+      if (heads.length) {
+        let col = 0;
+        for (const { m, a, b } of heads) {
+          headed.add(m);
+          if (a > col) html += `<span class="mgap" style="grid-column:span ${a - col}"></span>`;
+          const tot = totals.get(m) || { n: 0, km: 0 }, [y, mo] = m.split('-').map(Number);
+          html += `<div class="mhead" style="grid-column:${a + 1} / span ${b - a + 1}"><h3>${MON[mo - 1]} ${y}</h3><span class="tot">${tot.n} run${tot.n === 1 ? '' : 's'} · ${tot.km.toFixed(1)} km</span></div>`;
+          col = b + 1;
         }
+        if (col < 7) html += `<span class="mgap" style="grid-column:span ${7 - col}"></span>`;
       }
-      return `<div class="month"><header><h3>${MON[mo]} ${y}</h3><span class="tot">${count} run${count === 1 ? '' : 's'} · ${km.toFixed(1)} km</span></header><div class="mgrid">${dows}${cells}</div></div>`;
-    }).join('');
+      for (const d of week) {
+        if (d < start || d > last) { html += '<span class="day pad"></span>'; continue; }
+        const key = iso(d), rs = byDay.get(key) || [];
+        const tip = rs.map(r => `${r.activity_name}: ${num(r.km) ? r.km.toFixed(1) + ' km' : ''}${num(r.min) ? ' in ' + hms(r.min * 60) : ''}${num(r.pace) ? ', ' + pace(r.pace) + ' /km' : ''}`).join('\n');
+        const cls = ['day', d.getMonth() % 2 ? 'alt' : '', d.getDate() === 1 ? 'first' : '', key === today ? 'today' : ''].filter(Boolean).join(' ');
+        html += `<div class="${cls}"${tip ? ` title="${esc(tip)}"` : ''}><span class="dn">${d.getDate() === 1 ? `1 ${MON[d.getMonth()]}` : d.getDate()}</span>` +
+          (rs.length ? '<div class="runs">' + rs.map(r => `<div class="run">${bubble(r.km)}<span class="km">${num(r.km) ? r.km.toFixed(1) : '–'}<small>km</small></span><span class="nm">${esc(r.activity_name)}</span></div>`).join('') + '</div>' : '') + '</div>';
+      }
+    }
+    $('cal').innerHTML = `<div class="mgrid">${html}</div>`;
   }
 
   // Recent activities
