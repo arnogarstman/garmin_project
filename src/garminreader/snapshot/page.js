@@ -82,7 +82,7 @@ function renderPage(D) {
     tile('Weight', num(st.weight_kg) ? `${st.weight_kg.toFixed(1)}<small>kg</small>` : '–', num(st.body_fat_pct) ? `Body fat ${st.body_fat_pct}%` : ''),
   ].join('');
 
-  // Coach's read: five checks a coach makes on this data, each with a verdict, the numbers behind
+  // Coach's read: the checks a coach makes on this data, each with a verdict, the numbers behind
   // it and the next step. Status is good, warn or crit; the pill always carries its word too.
   {
     const DAYS28 = 28 * DAY, mean = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
@@ -96,6 +96,16 @@ function renderPage(D) {
     const kv = rows => `<div class="kv">${rows.map(([k, v, d]) => `<span>${k}</span><b>${v}</b><i>${d}</i>`).join('')}</div>`;
     const cards = [];
     const weekStart = d => { const x = new Date(t(d)); return t(iso(new Date(x.getFullYear(), x.getMonth(), x.getDate() - (x.getDay() + 6) % 7))); };
+    // Running km per Monday-to-Sunday week; wk(1) is the last complete week.
+    const kmByWeek = new Map();
+    for (const r of runs) kmByWeek.set(weekStart(r.activity_date), (kmByWeek.get(weekStart(r.activity_date)) || 0) + r.km);
+    const thisWeek = weekStart(iso(new Date(x1))), wk = i => kmByWeek.get(thisWeek - i * 7 * DAY) || 0;
+    // Only weeks fully inside the data count: the week of the first run may be cut off.
+    const covered = runs.length ? weekStart(runs[0].activity_date) + 7 * DAY : Infinity;
+    // Training paces in min/km from the current half marathon prediction (null without one).
+    const hmP = num(st.predicted_half_marathon_s) ? st.predicted_half_marathon_s / 60 / HM_KM : null;
+    const easyFrom = hmP && hmP + 1.0, easyTo = hmP && hmP + 1.5;
+    let recovery = null;
 
     // 1. Recovery: last night against the athlete's own 28-day baseline (the night itself excluded).
     {
@@ -114,6 +124,7 @@ function renderPage(D) {
           : flags.length === 1
             ? ['warn', 'watch', 'Some fatigue showing', `${flags[0][0].toUpperCase() + flags[0].slice(1)}. Keep hard work short today or swap it for an easy run.`]
             : ['crit', 'fatigued', 'Under-recovered', `${flags.join(' and ').replace(/^./, c => c.toUpperCase())}. Take a rest day or a very easy 30 minutes.`];
+        recovery = status;
         cards.push(card('Recovery today', status, label, verdict, advice, kv([
           ['HRV last night', num(lastDay.hrv) ? `${lastDay.hrv} ms` : '–', num(lastDay.hrv) ? `${signed(lastDay.hrv - hrvM)} vs ${hrvM.toFixed(0)}` : ''],
           ['Resting HR', num(lastDay.rhr) ? `${lastDay.rhr} bpm` : '–', num(lastDay.rhr) ? `${signed(lastDay.rhr - rhrM)} vs ${rhrM.toFixed(0)}` : ''],
@@ -174,11 +185,6 @@ function renderPage(D) {
 
     // 4. Load progression: last complete week against up to three before it, plus the 7:28-day load ratio.
     {
-      const kmByWeek = new Map();
-      for (const r of runs) kmByWeek.set(weekStart(r.activity_date), (kmByWeek.get(weekStart(r.activity_date)) || 0) + r.km);
-      const thisWeek = weekStart(iso(new Date(x1))), wk = i => kmByWeek.get(thisWeek - i * 7 * DAY) || 0;
-      // Only weeks fully inside the data count: the week of the first run may be cut off.
-      const covered = runs.length ? weekStart(runs[0].activity_date) + 7 * DAY : Infinity;
       const before = [2, 3, 4].filter(i => thisWeek - i * 7 * DAY >= covered);
       const last = wk(1), prev = mean(before.map(wk));
       if (!before.length || !prev) cards.push(none('Load progression', 'Needs at least two complete weeks of running to compare.'));
@@ -215,6 +221,101 @@ function renderPage(D) {
           ['Longest run', `${lr.km.toFixed(1)} km`, fmtDate(lr.activity_date)],
           ['Share of its week', `${share.toFixed(0)}%`, `of ${weekKm.toFixed(0)} km`],
           ['Runs per week', perWeek.toFixed(1), `${recent.length} in 4 weeks`],
+        ])));
+      }
+    }
+
+
+    // 6. Sleep and readiness: how much a good night moves the next morning's readiness, from the
+    // athlete's own history (top third of nights by sleep score against the bottom third).
+    {
+      const pairs = days.filter(r => num(r.sleep) && num(r.ready)).map(r => [r.sleep, r.ready]);
+      if (pairs.length < 21) cards.push(none('Sleep and readiness', 'Needs three weeks of sleep scores and readiness to find your pattern.'));
+      else {
+        const sorted = [...pairs].sort((a, b) => a[0] - b[0]), n = Math.floor(sorted.length / 3);
+        const lo = sorted.slice(0, n), hi = sorted.slice(-n), gain = mean(hi.map(p => p[1])) - mean(lo.map(p => p[1]));
+        const goodNight = hi[0][0], sleep7 = mean(days.slice(-7).map(r => r.sleep).filter(num));
+        const [status, label, verdict, advice] = gain < 5
+          ? ['good', 'weak link', 'Readiness barely tracks your sleep', 'Your readiness swings more with training load than with sleep. Keep sleep steady and manage load.']
+          : num(sleep7) && sleep7 < goodNight
+            ? ['warn', 'lever', 'Sleep is your easiest win', `After your best nights readiness is ${gain.toFixed(0)} points higher. This week's sleep averages ${sleep7.toFixed(0)}, below the ${goodNight} of a good night: an earlier bedtime is worth more than an extra session.`]
+            : ['good', 'strong link', 'Sleep is paying off', `After your best nights readiness is ${gain.toFixed(0)} points higher, and this week you are sleeping like that. Protect it in heavy weeks.`];
+        cards.push(card('Sleep and readiness', status, label, verdict, advice, kv([
+          ['Readiness after best nights', mean(hi.map(p => p[1])).toFixed(0), `sleep ≥ ${goodNight}`],
+          ['Readiness after worst nights', mean(lo.map(p => p[1])).toFixed(0), `sleep ≤ ${lo[lo.length - 1][0]}`],
+          ['Sleep, 7-day avg', num(sleep7) ? sleep7.toFixed(0) : '–', `${pairs.length} nights`],
+        ])));
+      }
+    }
+
+    // 7. Consistency over the last 8 weeks: runs per week, gaps and the time since the last run.
+    {
+      const since = x1 - 56 * DAY, dates = [...new Set(runs.filter(r => t(r.activity_date) > since).map(r => t(r.activity_date)))].sort((a, b) => a - b);
+      if (!runs.length) cards.push(none('Consistency', 'No runs yet.'));
+      else {
+        const lastRun = t(runs[runs.length - 1].activity_date), daysSince = Math.round((x1 - lastRun) / DAY);
+        const gaps = dates.slice(1).map((d, i) => Math.round((d - dates[i]) / DAY) - 1), longest = Math.max(0, ...gaps, daysSince);
+        const weeks = [1, 2, 3, 4, 5, 6, 7, 8].filter(i => thisWeek - i * 7 * DAY >= covered);
+        const solid = weeks.filter(i => runs.filter(r => weekStart(r.activity_date) === thisWeek - i * 7 * DAY).length >= 3).length;
+        const perWeek = weeks.length ? weeks.reduce((s, i) => s + runs.filter(r => weekStart(r.activity_date) === thisWeek - i * 7 * DAY).length, 0) / weeks.length : 0;
+        const [status, label, verdict, advice] = daysSince >= 5
+          ? ['warn', 'gap', `${daysSince} days since your last run`, 'Restart with two or three easy runs before any hard session; fitness fades slowly, tendons adapt back quickly.']
+          : weeks.length && solid / weeks.length >= 0.75
+            ? ['good', 'consistent', 'Steady, week in week out', 'Consistency is what builds fitness. Keep three or more runs a week and the rest follows.']
+            : ['warn', 'patchy', 'Weeks are uneven', 'Aim for at least three runs every week; three short runs beat one long one plus a gap.'];
+        cards.push(card('Consistency · 8 weeks', status, label, verdict, advice, kv([
+          ['Runs per week', perWeek.toFixed(1), `${weeks.length} full weeks`],
+          ['Weeks with 3+ runs', `${solid} of ${weeks.length}`, ''],
+          ['Longest gap', `${longest} day${longest === 1 ? '' : 's'}`, `last run ${daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : daysSince + ' days ago'}`],
+        ])));
+      }
+    }
+
+    // 8. Training paces from the current half marathon prediction, and whether easy runs are easy.
+    {
+      if (!hmP) cards.push(none('Training paces', 'Needs a half marathon prediction from the watch.'));
+      else {
+        const p10 = num(st.predicted_10k_s) ? st.predicted_10k_s / 60 / 10 : hmP - 0.15, p5 = num(st.predicted_5k_s) ? st.predicted_5k_s / 60 / 5 : hmP - 0.35;
+        const cut = median(recent.filter(r => num(r.avg_hr)).map(r => r.avg_hr));
+        const easyRuns = recent.filter(r => num(r.avg_hr) && num(r.pace) && r.avg_hr <= cut);
+        const tooFast = easyRuns.filter(r => r.pace < easyFrom).length;
+        const share = easyRuns.length ? tooFast / easyRuns.length * 100 : 0;
+        const [status, label, verdict, advice] = easyRuns.length >= 3 && share > 50
+          ? ['warn', 'easy too fast', 'Your easy runs are not easy', `${tooFast} of your ${easyRuns.length} easiest runs in 4 weeks were faster than ${pace(easyFrom)} /km. Slower easy days let you run the hard days at the paces below.`]
+          : ['good', 'on pace', 'Paces for your current fitness', 'Your easy runs sit in the easy range. Use these paces for each kind of session; they move as the prediction does.'];
+        const range = (a, b) => `${pace(a)}–${pace(b)}`;
+        cards.push(card('Training paces · per km', status, label, verdict, advice, kv([
+          ['Easy and recovery', range(easyFrom, easyTo), 'most of the week'],
+          ['Long run', range(hmP + 0.75, hmP + 1.25), 'last km faster'],
+          ['Threshold', range(p10 + 0.05, hmP), '20–30 min'],
+          ['Half marathon', pace(hmP), 'race pace'],
+          ['Intervals', range(p5 - 0.05, p5 + 0.05), '3–5 min reps'],
+        ])));
+      }
+    }
+
+    // 9. Next week: volume, long run and sessions, from the recent build, the load ratio and today's recovery.
+    {
+      const full = [1, 2, 3, 4].filter(i => thisWeek - i * 7 * DAY >= covered).map(wk);
+      if (full.length < 2) cards.push(none('Next week', 'Needs two complete weeks of running to plan from.'));
+      else {
+        const lastKm = full[0], acwr = num(st.acwr) ? st.acwr : null;
+        const builds = full.slice(0, 3).every((v, i, a) => i === a.length - 1 || v > a[i + 1]) && full.length >= 3;
+        const longest = Math.max(0, ...recent.map(r => r.km));
+        let target, why, status = 'good', label = 'build';
+        if (recovery === 'crit' || (acwr && acwr > 1.5)) { target = lastKm * 0.7; why = 'You are carrying fatigue: an easier week first.'; status = 'warn'; label = 'recover'; }
+        else if (builds) { target = lastKm * 0.75; why = 'Three weeks of building: time for a lighter week to absorb it.'; label = 'down week'; }
+        else if (acwr && acwr > 1.3) { target = lastKm; why = 'Load is already climbing fast: hold volume this week.'; label = 'hold'; }
+        else { target = lastKm * 1.08; why = 'Room to grow: about 8% more than last week.'; }
+        const runsPerWeek = Math.max(3, Math.round(recent.length / 4));
+        const longKm = label === 'build' ? Math.min(longest + 1.5, 21, target * 0.35) : Math.min(longest, target * 0.35);
+        const hard = label === 'build' || label === 'hold';
+        const quality = hard ? 'one threshold run and one interval session at the paces in Training paces' : 'only some short strides at the end of an easy run';
+        cards.push(card('Next week', status, label, `Aim for about ${Math.round(target)} km`, `${why} Spread it over ${runsPerWeek} runs: ${quality}, the rest easy.`, kv([
+          ['Total', `${Math.round(target)} km`, `last week ${lastKm.toFixed(0)} km`],
+          ['Long run', `${longKm.toFixed(0)} km`, easyFrom ? `at ${pace(easyFrom + 0.1)}–${pace(easyTo)} /km` : 'easy pace'],
+          ['Quality sessions', hard ? '2' : '0', hard ? 'threshold + intervals' : 'strides only'],
+          ['Runs', `${runsPerWeek}`, 'rest of them easy'],
         ])));
       }
     }
