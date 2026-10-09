@@ -31,6 +31,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `infra/`: Terraform for Azure (see `infra/README.md`). `.github/workflows/`: CI, Terraform plan, deploy.
 - `src/garminreader/dashboard/`: Streamlit app. `queries.py` is its only database access and reads marts only.
 - `src/garminreader/config.py`: all settings, from `.env` (see `.env.example`).
+- `src/garminreader/snapshot/`: `uv run snapshot` renders the marts into one self-contained HTML page (template `page.html` + `page.js`), for hosting as a static page such as a Claude artifact. Reads marts only.
 - `src/garminreader/synthetic/`: demo data. A simulated athlete rendered as raw Garmin API responses, so the real pipeline runs on it unchanged.
 - `DATA_PROFILE`: `prod` (default, your data in `data/`) or `demo` (synthetic, in `data/demo/`, safe to publish). Real ingest is refused in demo; `synthesize` is refused in prod.
 
@@ -41,6 +42,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `uv run dashboard`
 - `DATA_PROFILE=demo uv run synthesize [--days 365] [--seed 42]`: rebuilds the demo warehouse from scratch, ending today; follow with `DATA_PROFILE=demo uv run transform`.
 - `uv run pipeline [--partition YYYY-MM-DD]`: the Dagster job in process (ingest, dbt build, checks, publish); what the cloud job runs.
+- `uv run snapshot [--out PATH] [--days 365]`: static HTML snapshot of the marts; defaults to `snapshot.html` next to the warehouse (gitignored with the data).
 - `uv run dagster dev`: Dagster UI for lineage, partitions and backfills.
 - `uv run explore`: DuckDB UI on a snapshot of the warehouse taken at startup; never blocks ingest or transform.
 - Checks: `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest`

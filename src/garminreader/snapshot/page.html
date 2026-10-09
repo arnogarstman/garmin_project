@@ -1,0 +1,148 @@
+<title>Garminreader</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: narrow column; status strip, then a 2-col chart grid, then pipeline and data health. Palette from dashboard/colors.py. */
+:root{
+  --bg:#fcfcfb; --panel:#f4f4f1; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781; --grid:#e1e0d9;
+  --c1:#2a78d6; --c2:#1baf7a; --c3:#eda100; --c4:#008300; --c5:#4a3aa7; --c6:#e34948;
+  --good:#0ca30c; --warn:#b98100; --crit:#d03b3b;
+  --display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Source Sans 3",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1a1a19; --panel:#222220; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781; --grid:#2c2c2a;
+  --c1:#3987e5; --c2:#199e70; --c3:#c98500; --c4:#2a9a2a; --c5:#9085e9; --c6:#e66767;
+  --good:#3cc23c; --warn:#fab219; --crit:#e66767; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1a1a19; --panel:#222220; --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781; --grid:#2c2c2a;
+  --c1:#3987e5; --c2:#199e70; --c3:#c98500; --c4:#2a9a2a; --c5:#9085e9; --c6:#e66767;
+  --good:#3cc23c; --warn:#fab219; --crit:#e66767; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--body)}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:32px 56px;display:grid;gap:40px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:.005em}
+h1{font-size:clamp(2.2rem,5vw,3.2rem);font-weight:700;line-height:1}
+h2{font-size:1.5rem;font-weight:600}
+h3{font-size:1.05rem;font-weight:600}
+p{margin:0;max-width:66ch;color:var(--ink2)}
+.eyebrow{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+header{display:grid;gap:12px}
+.demo{display:inline-flex;gap:8px;align-items:center;font:500 .75rem var(--mono);color:var(--ink2);border:1px solid var(--grid);border-radius:999px;padding:3px 10px;width:max-content;max-width:100%}
+.demo i{width:8px;height:8px;border-radius:50%;background:var(--c3);display:block}
+section{display:grid;gap:16px}
+.sechead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;border-bottom:1px solid var(--grid);padding-bottom:8px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--grid);border:1px solid var(--grid)}
+.tile{background:var(--bg);padding:14px 16px;display:grid;gap:2px;align-content:start}
+.tile .v{font:600 1.9rem/1.1 var(--display);font-variant-numeric:tabular-nums}
+.tile .v small{font-size:.9rem;color:var(--muted);font-weight:500;margin-left:3px}
+.tile .s{font-size:.82rem;color:var(--ink2)}
+.pill{display:inline-block;font:500 .68rem var(--mono);letter-spacing:.06em;padding:1px 7px;border-radius:3px;text-transform:uppercase;width:max-content}
+.pill.good{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
+.pill.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 16%,transparent)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:28px 32px}
+.chart{display:grid;gap:6px;min-width:0}
+.chart .cap{font-size:.85rem;color:var(--ink2)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.8rem;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend b{width:12px;height:3px;display:block;border-radius:2px}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{fill:var(--muted);font:11px var(--mono)}
+.tbl{overflow-x:auto;border:1px solid var(--grid)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:tabular-nums}
+th,td{padding:8px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--grid)}
+th{font:500 .7rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);background:var(--panel)}
+td.n,th.n{text-align:right}
+tr:last-child td{border-bottom:0}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.step{background:var(--panel);padding:14px 16px;display:grid;gap:6px;align-content:start;border-top:3px solid var(--c1)}
+.step:nth-child(2){border-color:var(--c2)}.step:nth-child(3){border-color:var(--c5)}.step:nth-child(4){border-color:var(--c3)}.step:nth-child(5){border-color:var(--c6)}
+.step p{font-size:.88rem}
+code{font:.82rem var(--mono);color:var(--ink);background:var(--panel);padding:1px 5px;border-radius:3px;word-break:break-word}
+.step code{background:var(--bg)}
+.cmds{display:grid;gap:6px;font:.84rem var(--mono);background:var(--panel);padding:14px 16px;overflow-x:auto}
+.cmds div{white-space:nowrap}.cmds span{color:var(--muted)}
+.health{display:flex;flex-wrap:wrap;gap:8px}
+.health div{border:1px solid var(--grid);padding:6px 10px;font-size:.82rem;display:flex;gap:8px;align-items:center}
+.health i{width:7px;height:7px;border-radius:50%;background:var(--good);display:block}
+footer{font-size:.8rem;color:var(--muted)}
+</style>
+<div class="wrap">
+<header>
+  <span class="eyebrow">Personal data pipeline · Garmin Connect → DuckDB → dbt</span>
+  <h1>Garminreader</h1>
+  <p id="intro">Ingests Garmin Connect data as raw JSON, models it with dbt on DuckDB, and serves a training dashboard.</p>
+  <span class="demo"><i></i><span id="profile"></span> · built <span id="built"></span></span>
+</header>
+
+<section>
+  <div class="sechead"><h2>Today</h2><span class="eyebrow">marts.rpt_current_status</span></div>
+  <div class="tiles" id="tiles"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Toward the goal</h2><span class="eyebrow" id="goaleb"></span></div>
+  <div class="grid2">
+    <div class="chart">
+      <h3>Half marathon prediction</h3>
+      <div class="legend"><span><b style="background:var(--c1)"></b>Garmin prediction (weekly)</span><span id="lg-target"><b style="background:var(--c6)"></b>Target</span><span><b style="background:var(--c3);height:8px;width:8px;border-radius:50%"></b>Race result</span></div>
+      <div id="ch-pred"></div>
+      <div class="cap" id="cap-pred"></div>
+    </div>
+    <div class="chart">
+      <h3>Weekly running volume</h3>
+      <div class="legend"><span><b style="background:var(--c1);height:8px"></b>Running km per week</span><span><b style="background:var(--ink2)"></b>4-week average</span></div>
+      <div id="ch-km"></div>
+      <div class="cap" id="cap-km"></div>
+    </div>
+    <div class="chart">
+      <h3>VO2 max</h3>
+      <div id="ch-vo2"></div>
+      <div class="cap" id="cap-vo2"></div>
+    </div>
+    <div class="chart">
+      <h3>Training load</h3>
+      <div class="legend"><span><b style="background:var(--c5)"></b>Acute (7-day)</span><span><b style="background:var(--c2)"></b>Chronic (28-day)</span></div>
+      <div id="ch-load"></div>
+      <div class="cap" id="cap-load"></div>
+    </div>
+  </div>
+  <div class="chart">
+    <h3>Time in heart rate zone, all activities</h3>
+    <div id="ch-zones"></div>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Recent activities</h2><span class="eyebrow">marts.fct_activities</span></div>
+  <div class="tbl"><table id="recent"><thead><tr><th>Date</th><th>Activity</th><th class="n">Distance</th><th class="n">Time</th><th class="n">Pace</th><th class="n">Avg HR</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>How it works</h2><span class="eyebrow">src/garminreader · transform/</span></div>
+  <div class="flow">
+    <div class="step"><span class="eyebrow">Sources</span><h3>Pluggable ingest</h3><p>Each source implements one interface and is registered in <code>sources/__init__.py</code>. Garmin today; TrainMore and Strava slot in without touching it.</p></div>
+    <div class="step"><span class="eyebrow">Raw</span><h3>Untouched NDJSON</h3><p>API payloads land as-is with load metadata under <code>&lt;source&gt;/endpoint=/load_date=/</code>, committed by a <code>_loads/</code> marker. Local disk or <code>abfs://</code>.</p></div>
+    <div class="step"><span class="eyebrow">Transform</span><h3>dbt on DuckDB</h3><p>Staging tables keep the newest load per record; marts expose <code>fct_*</code> and <code>rpt_*</code>. No transformation happens in ingest code.</p></div>
+    <div class="step"><span class="eyebrow">Orchestrate</span><h3>Dagster</h3><p>Raw assets partitioned by day, dbt via dagster-dbt, freshness checks, then the warehouse is published. The cloud job runs it once a day.</p></div>
+    <div class="step"><span class="eyebrow">Serve</span><h3>Streamlit</h3><p>Reads marts only, through <code>queries.py</code>. Adds an AI coach and training plan against the goal file.</p></div>
+  </div>
+  <div class="cmds">
+    <div>uv run ingest garmin --since 2026-01-01 <span># or resume from last load</span></div>
+    <div>uv run transform <span># dbt build</span></div>
+    <div>uv run pipeline <span># ingest, build, checks, publish</span></div>
+    <div>uv run dashboard</div>
+    <div>uv run snapshot <span># this page</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Data health</h2><span class="eyebrow">marts.rpt_metric_lag</span></div>
+  <div class="health" id="health"></div>
+</section>
+
+<footer id="footer"></footer>
+</div>
+<script>window.__SNAPSHOT__=/*SNAPSHOT*/null;</script>
+<script>
+/*APP*/</script>
