@@ -25,6 +25,7 @@ explore = "garminreader.explore:main"
 synthesize = "garminreader.synthetic.cli:main"
 pipeline = "garminreader.orchestration.cli:main"
 snapshot = "garminreader.snapshot.cli:main"
+doctor = "garminreader.doctor:main"
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13"]
