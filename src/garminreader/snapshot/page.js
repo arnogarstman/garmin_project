@@ -175,7 +175,7 @@ function renderPage(D) {
     }
   }
 
-  // Run calendar: one month grid per month, newest first. Each run is a bubble whose
+  // Run calendar: one month grid per month, oldest first, so it reads in time order. Each run is a bubble whose
   // area is proportional to its distance (diameter grows with the square root), on one fixed scale.
   {
     const runs = D.runs || [], byDay = new Map();
@@ -187,7 +187,7 @@ function renderPage(D) {
     {
       const last = new Date(x1), yearAgo = new Date(last.getFullYear(), last.getMonth() - 11, 1);
       const first = runs.length ? new Date(Math.min(t(runs[0].activity_date), yearAgo.getTime())) : yearAgo;
-      for (let m = new Date(last.getFullYear(), last.getMonth(), 1); m >= new Date(first.getFullYear(), first.getMonth(), 1); m.setMonth(m.getMonth() - 1)) months.push(new Date(m));
+      for (let m = new Date(last.getFullYear(), last.getMonth(), 1); m >= new Date(first.getFullYear(), first.getMonth(), 1); m.setMonth(m.getMonth() - 1)) months.unshift(new Date(m));
     }
     $('calkeys').innerHTML = runs.length ? 'Bubble area is proportional to distance:' + [5, 10, 21.1].map(km => `<span>${bubble(km)}${km} km</span>`).join('') : '';
     const dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<span class="dow">${d}</span>`).join('');
