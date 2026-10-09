@@ -15,5 +15,11 @@ select
     elevation_gain_m,
     aerobic_effect,
     anaerobic_effect,
-    training_load
+    training_load,
+    hr_zone_1_s / 60 as hr_zone_1_min,
+    hr_zone_2_s / 60 as hr_zone_2_min,
+    hr_zone_3_s / 60 as hr_zone_3_min,
+    hr_zone_4_s / 60 as hr_zone_4_min,
+    hr_zone_5_s / 60 as hr_zone_5_min,
+    event_type = 'race' as is_tagged_race
 from {{ ref('stg_garmin__activities') }}

@@ -3,9 +3,13 @@ name = "garminreader"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "adlfs>=2024.7",
     "anthropic>=0.70",
+    "dagster>=1.11",
+    "dagster-dbt>=0.27",
     "dbt-duckdb>=1.11.0",
     "duckdb>=1.5.6",
+    "fsspec>=2024.6",
     "garminconnect>=0.3.2",
     "pandas>=2.2",
     "plotly>=5.22",
@@ -18,6 +22,9 @@ dependencies = [
 ingest = "garminreader.ingest.cli:main"
 dashboard = "garminreader.dashboard.__main__:main"
 transform = "garminreader.transform:main"
+explore = "garminreader.explore:main"
+synthesize = "garminreader.synthetic.cli:main"
+pipeline = "garminreader.orchestration.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]
@@ -25,13 +32,22 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "dagster-webserver>=1.11",
     "ipykernel>=7.4.0",
     "mypy>=1.18",
     "nbformat>=5.11.1",
     "pandas-stubs>=2.2",
     "pytest>=9.1.1",
     "ruff>=0.14",
+    "watchdog>=6.0.0",
 ]
+
+[tool.uv]
+# cryptography ships no Intel macOS wheels from 49 on, and building it needs a Rust/OpenSSL toolchain.
+constraint-dependencies = ["cryptography<49; sys_platform == 'darwin' and platform_machine == 'x86_64'"]
+
+[tool.dagster]
+module_name = "garminreader.orchestration.definitions"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -46,11 +62,12 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.ruff.lint.per-file-ignores]
 # UI glyphs (en dash placeholder, info emoji) are intentional.
 "src/garminreader/dashboard/app.py" = ["RUF001"]
+"src/garminreader/dashboard/formatting.py" = ["RUF001"]
 
 [tool.mypy]
 strict = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["garminconnect.*", "plotly.*", "dbt.*"]
+module = ["garminconnect.*", "plotly.*", "dbt.*", "fsspec.*", "adlfs.*", "dagster_dbt.*"]
 ignore_missing_imports = true

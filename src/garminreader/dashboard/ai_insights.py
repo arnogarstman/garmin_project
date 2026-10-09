@@ -42,7 +42,7 @@ def available() -> bool:
     return bool(_api_key())
 
 
-def _csv(df: pd.DataFrame) -> str:
+def csv_block(df: pd.DataFrame) -> str:
     if df.empty:
         return "(no data)"
     return df.to_csv(index=False)
@@ -51,9 +51,9 @@ def _csv(df: pd.DataFrame) -> str:
 def _build_context(daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict[str, Any]) -> str:
     parts = [
         "## Daily recovery/wellness metrics (one row per day)",
-        _csv(daily_df.sort_values("date")),
+        csv_block(daily_df.sort_values("date")),
         "\n## Activity log",
-        _csv(
+        csv_block(
             activities_df.sort_values("start")[
                 [
                     "start",
@@ -119,6 +119,9 @@ advice like "listen to your body." "Rest" is a valid and often correct \
 session. Tie the rationale for each day to specific numbers from the data \
 you were given.
 
+If the athlete says what they are training for, shape the week so it moves \
+them toward that goal, while still respecting their current recovery.
+
 This is a training suggestion based on data patterns, not medical or \
 professional coaching advice."""
 
@@ -140,7 +143,11 @@ class TrainingPlan(BaseModel):
 
 @st.cache_data(ttl=15 * 60, show_spinner=False)
 def generate_training_plan(
-    daily_df: pd.DataFrame, activities_df: pd.DataFrame, current_status: dict[str, Any], start: date
+    daily_df: pd.DataFrame,
+    activities_df: pd.DataFrame,
+    current_status: dict[str, Any],
+    start: date,
+    goal: str | None = None,
 ) -> TrainingPlan:
     api_key = _api_key()
     if not api_key:
@@ -150,6 +157,8 @@ def generate_training_plan(
     context = _build_context(daily_df, activities_df, current_status)
     plan_days = [start + timedelta(days=i) for i in range(7)]
     date_list = "\n".join(f"- {d.isoformat()} ({d.strftime('%A')})" for d in plan_days)
+    if goal:
+        context += f"\n\n## What the athlete is training for\n{goal}"
     context += f"\n\n## Build the plan for exactly these 7 dates\n{date_list}"
 
     response = client.messages.parse(

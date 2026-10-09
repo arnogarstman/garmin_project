@@ -26,18 +26,19 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
+    if config.is_demo():
+        # The demo warehouse is meant to be published; real data must never land in it.
+        parser.error("DATA_PROFILE=demo holds synthetic data only; use `uv run synthesize` instead")
+
     source = SOURCES[args.source]()
     since: date | None = args.since
+    store = storage.RawStore.from_url(config.raw_root())
     if since is None:
-        with storage.connect(config.duckdb_path()) as con:
-            last = storage.last_loaded_at(con, source.name)
+        last = store.last_loaded_at(source.name)
         since = last.date() - timedelta(days=REFETCH_DAYS) if last else None
         logger.info("No --since given; resuming %s from %s", source.name, since or "its default lookback")
 
-    # Fetch before opening the warehouse so the write lock is not held during slow API calls.
-    records = list(source.extract(since=since))
-    with storage.connect(config.duckdb_path()) as con:
-        storage.load(con, source.name, records)
+    store.load(source.name, source.extract(since=since))
 
 
 if __name__ == "__main__":

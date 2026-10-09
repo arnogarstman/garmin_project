@@ -2,12 +2,21 @@ version: 2
 
 sources:
   - name: garmin
-    description: Raw Garmin Connect API responses, one row per call, landed by `uv run ingest garmin`.
-    schema: raw
+    description: >
+      Raw Garmin Connect API responses landed as newline-delimited JSON by `uv run ingest garmin`,
+      partitioned as garmin/endpoint=<endpoint>/load_date=<date>/<load_id>.jsonl under RAW_ROOT.
+      Includes records of loads that never committed; read it through base_garmin__payloads.
     tables:
       - name: payloads
-        identifier: garmin
-        description: Append-only; a row is written only when its payload is new or changed.
+        description: Append-only; a record is written only when its payload is new or changed.
+        config:
+          meta:
+            dagster:
+              asset_key: [raw, garmin]  # written by the raw ingest step in Dagster
+          # One JSON object per line in `json`, plus the endpoint and load_date partitions.
+          external_location: >-
+            read_ndjson_objects('{{ env_var("RAW_ROOT") }}/garmin/endpoint=*/load_date=*/*.jsonl',
+              hive_partitioning = true)
         columns:
           - name: endpoint
             description: Logical endpoint name set by the source, e.g. sleep or activities.
@@ -15,20 +24,37 @@ sources:
               - not_null
               - accepted_values:
                   arguments:
-                    values: [daily_summary, sleep, hrv, training_readiness, training_status, activity, device_last_used]
+                    values:
+                      - daily_summary
+                      - sleep
+                      - hrv
+                      - training_readiness
+                      - training_status
+                      - weigh_ins
+                      - race_predictions
+                      - activity
+                      - device_last_used
+                      - heart_rate_zones
           - name: params
             description: Request parameters; per-day endpoints carry {"date"}, activities {"activity_id"}.
           - name: payload
             description: The API response, untouched.
 
   - name: ingest
-    description: Ingest run log written by the loader, one row per successful run per source.
-    schema: raw
+    description: >
+      Ingest run log written by the loader under RAW_ROOT/_loads, one marker file per successful
+      run per source. A marker commits its load: records of loads without one are ignored.
     tables:
       - name: loads
-        identifier: _loads
         config:
-          loaded_at_field: loaded_at
+          meta:
+            dagster:
+              asset_key: [raw, garmin_loads]  # the same step's run markers
+          # One marker object per file in `json`, plus the source and load_date partitions.
+          external_location: >-
+            read_json_objects('{{ env_var("RAW_ROOT") }}/_loads/source=*/load_date=*/*.json',
+              hive_partitioning = true)
+          loaded_at_field: "(json ->> 'loaded_at')::timestamptz"
           freshness:
             warn_after: {count: 24, period: hour}
             error_after: {count: 72, period: hour}

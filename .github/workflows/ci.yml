@@ -1,0 +1,74 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, types and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - run: uv run pytest
+
+  pipeline:
+    name: Pipeline on synthetic data
+    # The demo athlete is the fixture data: the real loader, every dbt model and
+    # test, and the Dagster checks run end to end, without any Garmin account.
+    runs-on: ubuntu-latest
+    env:
+      DATA_PROFILE: demo
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run dagster definitions validate
+      - run: uv run pipeline
+      - name: dbt docs
+        run: uv run transform docs generate
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dbt-docs
+          path: transform/target/
+          retention-days: 14
+
+  image:
+    name: Image build, smoke test and scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: garminreader:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run the pipeline inside the image
+        run: docker run --rm -e DATA_PROFILE=demo garminreader:ci pipeline
+      - name: Scan for vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: garminreader:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"

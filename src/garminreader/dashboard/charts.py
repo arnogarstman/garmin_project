@@ -5,7 +5,7 @@ per the project's chart style guide."""
 import pandas as pd
 import plotly.graph_objects as go
 
-from garminreader.dashboard import colors
+from garminreader.dashboard import colors, formatting
 
 
 def _layout(fig: go.Figure, y_title: str = "") -> go.Figure:
@@ -90,3 +90,60 @@ def bar_chart(df: pd.DataFrame, x: str, y: str, y_title: str = "") -> go.Figure:
         )
     )
     return _layout(fig, y_title)
+
+
+def stacked_bar_chart(df: pd.DataFrame, x: str, series: dict[str, str], y_title: str = "") -> go.Figure:
+    """series: {column_name: display_label}, stacked bottom to top in the given order."""
+    fig = go.Figure()
+    palette = colors.categorical()
+    for i, (col, label) in enumerate(series.items()):
+        fig.add_trace(
+            go.Bar(
+                x=df[x],
+                y=df[col],
+                name=label,
+                marker=dict(color=palette[i % len(palette)]),
+                hovertemplate=f"{label}: %{{y:.0f}}<extra></extra>",
+            )
+        )
+    fig.update_layout(barmode="stack")
+    return _layout(fig, y_title)
+
+
+def time_trend_chart(df: pd.DataFrame, x: str, series: dict[str, str], markers: bool = False) -> go.Figure:
+    """Durations in seconds over time, one line per series ({column_name: display_label}).
+
+    The y axis reads as h:mm:ss and is reversed, so faster (better) is higher up.
+    """
+    fig = go.Figure()
+    palette = colors.categorical()
+    for i, (col, label) in enumerate(series.items()):
+        data = df.dropna(subset=[col])
+        fig.add_trace(
+            go.Scatter(
+                x=data[x],
+                y=data[col],
+                mode="lines+markers" if markers else "lines",
+                name=label,
+                line=dict(width=2, color=palette[i % len(palette)]),
+                marker=dict(size=8),
+                customdata=[formatting.duration(v) for v in data[col]],
+                hovertemplate=f"{label}: %{{customdata}}<extra></extra>",
+            )
+        )
+    fig = _layout(fig, "")
+    values = pd.concat([df[col] for col in series]).dropna()
+    if not values.empty:
+        ticks = _duration_ticks(float(values.min()), float(values.max()))
+        fig.update_yaxes(autorange="reversed", tickvals=ticks, ticktext=[formatting.duration(t) for t in ticks])
+    return fig
+
+
+def _duration_ticks(low: float, high: float, count: int = 5) -> list[float]:
+    """Evenly spaced ticks on whole minutes, covering [low, high]."""
+    step = max(60.0, round((high - low) / count / 60) * 60)
+    start = (low // step) * step
+    ticks = [start]
+    while ticks[-1] < high:
+        ticks.append(ticks[-1] + step)
+    return ticks

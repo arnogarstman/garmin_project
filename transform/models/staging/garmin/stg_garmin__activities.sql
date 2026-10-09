@@ -3,7 +3,7 @@ with activities as (
     select
         payload as activity,
         loaded_at at time zone 'UTC' as loaded_at_utc
-    from {{ source('garmin', 'payloads') }}
+    from {{ ref('base_garmin__payloads') }}
     where endpoint = 'activity'
 )
 
@@ -23,6 +23,12 @@ select
     (activity ->> '$.aerobicTrainingEffect')::double as aerobic_effect,
     (activity ->> '$.anaerobicTrainingEffect')::double as anaerobic_effect,
     (activity ->> '$.activityTrainingLoad')::double as training_load,
+    activity ->> '$.eventType.typeKey' as event_type,
+    (activity ->> '$.hrTimeInZone_1')::double as hr_zone_1_s,
+    (activity ->> '$.hrTimeInZone_2')::double as hr_zone_2_s,
+    (activity ->> '$.hrTimeInZone_3')::double as hr_zone_3_s,
+    (activity ->> '$.hrTimeInZone_4')::double as hr_zone_4_s,
+    (activity ->> '$.hrTimeInZone_5')::double as hr_zone_5_s,
     loaded_at_utc
 from activities
 qualify row_number() over (partition by activity_id order by loaded_at_utc desc) = 1

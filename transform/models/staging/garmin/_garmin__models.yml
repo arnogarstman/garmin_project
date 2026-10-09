@@ -35,8 +35,31 @@ models:
       - name: calendar_date
         data_tests: [unique, not_null]
 
+  - name: stg_garmin__weigh_ins
+    description: Weigh-ins from a Garmin scale or entered manually. One row per weigh-in.
+    columns:
+      - name: weigh_in_id
+        data_tests: [unique, not_null]
+      - name: weight_kg
+        data_tests:
+          - not_null
+          - value_in_range:
+              arguments: {min_value: 20, max_value: 300}
+
+  - name: stg_garmin__race_predictions
+    description: Garmin's predicted 5K, 10K, half marathon and marathon times. One row per day.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+
+  - name: stg_garmin__heart_rate_zones
+    description: Heart rate zone settings from the latest snapshot. One row per sport.
+    columns:
+      - name: sport
+        data_tests: [unique, not_null]
+
   - name: stg_garmin__activities
-    description: Activity summaries. One row per activity.
+    description: Activity summaries, including seconds spent in each heart rate zone. One row per activity.
     columns:
       - name: activity_id
         data_tests: [unique, not_null]

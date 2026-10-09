@@ -22,7 +22,8 @@ class RawRecord:
 class Source(Protocol):
     name: str
 
-    def extract(self, since: date | None = None) -> Iterator[RawRecord]:
-        """Yield raw records. `since` is a hint for incremental sources; a
-        source may ignore it and return full history."""
+    def extract(self, since: date | None = None, until: date | None = None) -> Iterator[RawRecord]:
+        """Yield raw records. `since` and `until` (inclusive, default today) are
+        hints for incremental sources; a source may ignore them and return full
+        history."""
         ...

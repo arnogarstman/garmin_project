@@ -1,0 +1,107 @@
+name: terraform
+
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/terraform.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: fmt, validate, tflint, checkov
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+      - run: terraform fmt -check -recursive
+      - name: validate
+        run: |
+          for root in bootstrap envs/demo envs/prod; do
+            terraform -chdir=$root init -backend=false -input=false
+            terraform -chdir=$root validate
+          done
+      - uses: terraform-linters/setup-tflint@v6
+      - run: tflint --init --config "$PWD/.tflint.hcl"
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # tflint downloads its ruleset from GitHub
+      - run: tflint --recursive --config "$PWD/.tflint.hcl"
+      - uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra
+          framework: terraform
+          quiet: true
+
+  plan:
+    name: plan (${{ matrix.environment }})
+    needs: static
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC login to Azure
+      pull-requests: write # the plan comment
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [demo, prod]
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_PLAN }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_IN_AUTOMATION: "true"
+      TF_VAR_suffix: ${{ vars.NAME_SUFFIX }}
+      TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
+      TF_VAR_registry_server: ${{ vars.ACR_LOGIN_SERVER }}
+      TF_VAR_registry_id: ${{ vars.REGISTRY_ID }}
+      TF_VAR_image: ${{ vars.ACR_LOGIN_SERVER }}/garminreader:${{ github.event.pull_request.head.sha }}
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_dashboard_auth_client_id: ${{ vars.DASHBOARD_AUTH_CLIENT_ID }}
+      TF_VAR_dashboard_allowed_object_ids: ${{ vars.DASHBOARD_ALLOWED_OBJECT_IDS }}
+      TF_VAR_secret_officer_principal_ids: ${{ vars.SECRET_OFFICER_OBJECT_IDS }}
+    defaults:
+      run:
+        working-directory: infra/envs/${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+      - name: init
+        run: >
+          terraform init -input=false
+          -backend-config="resource_group_name=${{ vars.TFSTATE_RESOURCE_GROUP }}"
+          -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
+          -backend-config="key=${{ matrix.environment }}.tfstate"
+      - id: plan
+        run: terraform plan -input=false -no-color -lock-timeout=5m -out=tfplan
+        continue-on-error: true
+      - name: Comment the plan on the pull request
+        uses: actions/github-script@v9
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          OUTCOME: ${{ steps.plan.outcome }}
+          PLAN: ${{ steps.plan.outputs.stdout }}
+          ERRORS: ${{ steps.plan.outputs.stderr }}
+        with:
+          script: |
+            const marker = `<!-- terraform-plan-${process.env.ENVIRONMENT} -->`;
+            const output = (process.env.PLAN || process.env.ERRORS || "").slice(-60000);
+            const body = `${marker}\n### Terraform plan: \`${process.env.ENVIRONMENT}\` (${process.env.OUTCOME})\n` +
+              `<details><summary>Show plan</summary>\n\n\`\`\`\n${output}\n\`\`\`\n</details>`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+      - if: steps.plan.outcome == 'failure'
+        run: exit 1

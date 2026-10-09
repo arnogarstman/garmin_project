@@ -11,3 +11,9 @@ transform/target/
 transform/logs/
 transform/dbt_packages/
 transform/.user.yml
+.tmp_dagster_home*/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.claude/settings.local.json

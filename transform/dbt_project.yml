@@ -8,8 +8,10 @@ macro-paths: ["macros"]
 models:
   garminreader:
     staging:
+      # Tables, not views: the built warehouse must not depend on the raw files,
+      # since the dashboard reads a copy of it where those files are not present.
       +schema: staging
-      +materialized: view
+      +materialized: table
     marts:
       +schema: marts
       +materialized: table

@@ -3,8 +3,9 @@
 Per-day endpoints are fetched for every day in [since, today]. Activities come
 from one range query (garminconnect pages through it internally) and are
 stored one record per activity, keyed by activity_id, so an activity seen
-again in a later window is recognised as unchanged. The device snapshot is
-taken once per run as a freshness signal.
+again in a later window is recognised as unchanged. Snapshot endpoints (the
+device, as a freshness signal, and the heart rate zones) are taken once per
+run; the loader only stores them when they change, which builds their history.
 """
 
 import logging
@@ -26,13 +27,21 @@ from garminreader.ingest.sources.garmin import auth
 
 logger = logging.getLogger(__name__)
 
-# Logical endpoint name -> garminconnect method taking a YYYY-MM-DD date.
-DAY_ENDPOINTS: dict[str, str] = {
-    "daily_summary": "get_user_summary",
-    "sleep": "get_sleep_data",
-    "hrv": "get_hrv_data",
-    "training_readiness": "get_training_readiness",
-    "training_status": "get_training_status",
+# Logical endpoint name -> call for one YYYY-MM-DD date.
+DAY_ENDPOINTS: dict[str, Callable[[Garmin, str], Any]] = {
+    "daily_summary": lambda api, day: api.get_user_summary(day),
+    "sleep": lambda api, day: api.get_sleep_data(day),
+    "hrv": lambda api, day: api.get_hrv_data(day),
+    "training_readiness": lambda api, day: api.get_training_readiness(day),
+    "training_status": lambda api, day: api.get_training_status(day),
+    "weigh_ins": lambda api, day: api.get_daily_weigh_ins(day),
+    "race_predictions": lambda api, day: api.get_race_predictions(day, day, "daily"),
+}
+
+# Logical endpoint name -> garminconnect method without arguments, called once per run.
+SNAPSHOT_ENDPOINTS: dict[str, str] = {
+    "device_last_used": "get_device_last_used",
+    "heart_rate_zones": "get_heart_rate_zones",
 }
 
 DEFAULT_LOOKBACK_DAYS = 30
@@ -55,15 +64,16 @@ class GarminSource:
         self._today = today
         self._sleep = sleep
 
-    def extract(self, since: date | None = None) -> Iterator[RawRecord]:
-        end = self._today()
+    def extract(self, since: date | None = None, until: date | None = None) -> Iterator[RawRecord]:
+        end = min(until, self._today()) if until else self._today()
         start = since or end - timedelta(days=DEFAULT_LOOKBACK_DAYS - 1)
         if start > end:
             raise ValueError(f"since {start} is after today {end}")
         logger.info("Extracting Garmin data for %s to %s", start, end)
 
         api = self._connect()
-        yield from self._call("device_last_used", api.get_device_last_used, {})
+        for endpoint, method in SNAPSHOT_ENDPOINTS.items():
+            yield from self._call(endpoint, getattr(api, method), {})
         activities = self._fetch(
             "activities",
             partial(api.get_activities_by_date, start.isoformat(), end.isoformat()),
@@ -73,8 +83,8 @@ class GarminSource:
             yield RawRecord("activity", activity, {"activity_id": activity["activityId"]})
         day = start
         while day <= end:
-            for endpoint, method in DAY_ENDPOINTS.items():
-                fetch = partial(getattr(api, method), day.isoformat())
+            for endpoint, call in DAY_ENDPOINTS.items():
+                fetch = partial(call, api, day.isoformat())
                 yield from self._call(endpoint, fetch, {"date": day.isoformat()})
             day += timedelta(days=1)
 

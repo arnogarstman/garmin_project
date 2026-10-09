@@ -1,0 +1,104 @@
+name: deploy
+
+# Every merge to main: build and push one image, then roll it out to demo and,
+# after approval in the protected `prod` GitHub environment, to prod. Both
+# environments run the same image, tagged with the commit.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC login to Azure
+
+concurrency:
+  group: deploy # one rollout at a time, never cancelled halfway
+  cancel-in-progress: false
+
+env:
+  IMAGE: ${{ vars.ACR_LOGIN_SERVER }}/garminreader:${{ github.sha }}
+
+jobs:
+  image:
+    name: Build, scan and push
+    runs-on: ubuntu-latest
+    environment: demo # the deploy identity is only trusted from deployment environments
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_DEPLOY }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: az acr login --name "${{ vars.ACR_LOGIN_SERVER }}"
+      - run: docker push "$IMAGE"
+
+  apply:
+    name: apply (${{ matrix.environment }})
+    needs: image
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1 # demo first; prod waits for its environment approval
+      matrix:
+        environment: [demo, prod]
+    environment:
+      name: ${{ matrix.environment }}
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID_DEPLOY }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_IN_AUTOMATION: "true"
+      TF_VAR_suffix: ${{ vars.NAME_SUFFIX }}
+      TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
+      TF_VAR_registry_server: ${{ vars.ACR_LOGIN_SERVER }}
+      TF_VAR_registry_id: ${{ vars.REGISTRY_ID }}
+      TF_VAR_image: ${{ vars.ACR_LOGIN_SERVER }}/garminreader:${{ github.sha }}
+      TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_dashboard_auth_client_id: ${{ vars.DASHBOARD_AUTH_CLIENT_ID }}
+      TF_VAR_dashboard_allowed_object_ids: ${{ vars.DASHBOARD_ALLOWED_OBJECT_IDS }}
+      TF_VAR_secret_officer_principal_ids: ${{ vars.SECRET_OFFICER_OBJECT_IDS }}
+    defaults:
+      run:
+        working-directory: infra/envs/${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false # plain stdout for `terraform output`
+      - name: init
+        run: >
+          terraform init -input=false
+          -backend-config="resource_group_name=${{ vars.TFSTATE_RESOURCE_GROUP }}"
+          -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE_ACCOUNT }}"
+          -backend-config="key=${{ matrix.environment }}.tfstate"
+      - run: terraform apply -input=false -auto-approve -lock-timeout=10m
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID_DEPLOY }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Run the pipeline once with the new image
+        run: |
+          az containerapp job start \
+            --name "$(terraform output -raw pipeline_job_name)" \
+            --resource-group "$(terraform output -raw resource_group_name)"
+      - name: Smoke test the public demo dashboard
+        if: matrix.environment == 'demo'
+        run: curl --fail --retry 10 --retry-delay 15 --retry-all-errors "$(terraform output -raw dashboard_url)/_stcore/health"

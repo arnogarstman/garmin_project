@@ -21,6 +21,18 @@ summary as (
         arg_max(resting_hr, calendar_date) filter (where resting_hr is not null) as resting_hr,
         max(calendar_date) filter (where resting_hr is not null) as resting_hr_date
     from {{ ref('stg_garmin__daily_summary') }}
+),
+
+body as (
+    select * from {{ ref('fct_daily_body') }}
+    order by calendar_date desc
+    limit 1
+),
+
+predictions as (
+    select * from {{ ref('fct_race_predictions') }}
+    order by calendar_date desc
+    limit 1
 )
 
 select
@@ -36,7 +48,17 @@ select
     coalesce(readiness.feedback_long, readiness.feedback_short) as readiness_feedback,
     summary.body_battery_current,
     summary.resting_hr,
-    summary.resting_hr_date
+    summary.resting_hr_date,
+    body.calendar_date as weight_date,
+    body.weight_kg,
+    body.body_fat_pct,
+    predictions.calendar_date as race_predictions_date,
+    predictions.predicted_5k_s,
+    predictions.predicted_10k_s,
+    predictions.predicted_half_marathon_s,
+    predictions.predicted_marathon_s
 from summary
 left join status on true
 left join readiness on true
+left join body on true
+left join predictions on true

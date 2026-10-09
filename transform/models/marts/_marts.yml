@@ -16,15 +16,55 @@ models:
               arguments: {min_value: 0, max_value: 100}
 
   - name: fct_activities
-    description: One row per Garmin activity.
+    description: One row per Garmin activity, including minutes in each heart rate zone.
     columns:
       - name: activity_id
         data_tests: [unique, not_null]
       - name: activity_date
         data_tests: [not_null]
 
+  - name: fct_race_results
+    description: >
+      Half marathon and marathon results with progression per distance: previous time,
+      improvement and personal best to date. One row per qualifying run.
+    columns:
+      - name: activity_id
+        data_tests: [unique, not_null]
+      - name: race_distance
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [Half marathon, Marathon]
+      - name: finish_time_s
+        data_tests: [not_null]
+
+  - name: fct_race_predictions
+    description: Garmin's predicted 5K, 10K, half marathon and marathon times, in seconds. One row per day.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+
+  - name: fct_daily_body
+    description: Weight and body composition, averaged over the day's weigh-ins. One row per day with a weigh-in.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+      - name: body_fat_pct
+        data_tests:
+          - value_in_range:
+              arguments: {min_value: 0, max_value: 100}
+
+  - name: rpt_heart_rate_zones
+    description: Current heart rate zone floors (bpm) per sport.
+    columns:
+      - name: sport
+        data_tests: [unique, not_null]
+
   - name: rpt_current_status
-    description: Latest known training status, readiness, body battery and resting HR. Always one row.
+    description: >
+      Latest known training status, readiness, body battery, resting HR, weight and race
+      predictions. Always one row.
 
   - name: rpt_garmin_freshness
     description: Freshness signals with age and a stale flag. View; ages are relative to query time.
@@ -50,3 +90,26 @@ models:
     columns:
       - name: metric
         data_tests: [unique, not_null]
+
+unit_tests:
+  - name: race_results_detect_races_and_track_progression
+    description: >
+      Runs within a distance band count as races of that distance; other distances and
+      non-running activities do not. Progression is per distance: improvement against the
+      previous race, the personal best so far, and whether a race set a new personal best.
+    model: fct_race_results
+    given:
+      - input: ref('stg_garmin__activities')
+        rows:
+          - {activity_id: 1, activity_type: running, started_at_local: "2025-04-06 09:00:00", distance_m: 21200, duration_s: 6300, event_type: uncategorized}
+          - {activity_id: 2, activity_type: running, started_at_local: "2025-10-12 09:00:00", distance_m: 21150, duration_s: 6000, event_type: race}
+          - {activity_id: 3, activity_type: running, started_at_local: "2026-04-05 09:00:00", distance_m: 21300, duration_s: 6100, event_type: uncategorized}
+          - {activity_id: 4, activity_type: running, started_at_local: "2026-05-10 09:00:00", distance_m: 42400, duration_s: 14000, event_type: race}
+          - {activity_id: 5, activity_type: running, started_at_local: "2026-05-20 09:00:00", distance_m: 16000, duration_s: 4800, event_type: uncategorized}
+          - {activity_id: 6, activity_type: cycling, started_at_local: "2026-05-21 09:00:00", distance_m: 21100, duration_s: 2700, event_type: uncategorized}
+    expect:
+      rows:
+        - {activity_id: 1, race_distance: Half marathon, race_number: 1, improvement_vs_previous_s: null, personal_best_to_date_s: 6300, is_personal_best: true, is_tagged_race: false}
+        - {activity_id: 2, race_distance: Half marathon, race_number: 2, improvement_vs_previous_s: 300, personal_best_to_date_s: 6000, is_personal_best: true, is_tagged_race: true}
+        - {activity_id: 3, race_distance: Half marathon, race_number: 3, improvement_vs_previous_s: -100, personal_best_to_date_s: 6000, is_personal_best: false, is_tagged_race: false}
+        - {activity_id: 4, race_distance: Marathon, race_number: 1, improvement_vs_previous_s: null, personal_best_to_date_s: 14000, is_personal_best: true, is_tagged_race: true}

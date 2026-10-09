@@ -8,6 +8,8 @@ import logging
 import subprocess
 import sys
 
+from garminreader import config
+
 logger = logging.getLogger(__name__)
 
 STEPS: list[tuple[str, list[str]]] = [
@@ -21,6 +23,8 @@ class RefreshFailed(RuntimeError):
 
 
 def run_pipeline() -> None:
+    if config.is_demo():
+        raise RefreshFailed("Refreshing from Garmin is disabled for demo data.")
     for name, args in STEPS:
         logger.info("Running %s", name)
         result = subprocess.run(

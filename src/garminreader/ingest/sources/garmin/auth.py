@@ -2,6 +2,7 @@
 logged-in session survives an app restart without needing the password
 (or an MFA code) again."""
 
+import os
 import sys
 
 from garminconnect import Garmin, GarminConnectAuthenticationError
@@ -12,13 +13,16 @@ TOKEN_DIR = config.garmin_token_dir()
 
 
 def try_resume_session() -> Garmin | None:
-    """Attempt to restore a session purely from cached tokens on disk.
-    Returns a ready-to-use client, or None if there is no valid cached session."""
-    if not TOKEN_DIR.exists():
+    """Attempt to restore a session purely from cached tokens: the GARMINTOKENS
+    environment variable (the token JSON, as the cloud job gets it from Key Vault)
+    or else the token directory on disk. Returns a ready-to-use client, or None
+    if there is no valid cached session."""
+    tokenstore = os.getenv("GARMINTOKENS") or (str(TOKEN_DIR) if TOKEN_DIR.exists() else None)
+    if tokenstore is None:
         return None
     api = Garmin(return_on_mfa=True)
     try:
-        mfa_status, _ = api.login(tokenstore=str(TOKEN_DIR))
+        mfa_status, _ = api.login(tokenstore=tokenstore)
     except Exception:
         return None
     if mfa_status == "needs_mfa":
