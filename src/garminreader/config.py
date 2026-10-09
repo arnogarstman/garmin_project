@@ -28,34 +28,27 @@ def is_demo() -> bool:
 def _profile_setting(key: str, default: str) -> str:
     """A data location for the active profile. The demo reads DEMO_<key> and never
     the prod key: the demo is rebuilt from scratch, so a prod setting must never be
-    able to point it at real data. Relative paths resolve against the project root."""
+    able to point it at real data. Relative paths resolve against the project root;
+    URLs (scheme://) and MotherDuck databases (md:<name>) are kept as is."""
     demo = is_demo()
     value = os.getenv(f"DEMO_{key}" if demo else key) or f"data/{'demo/' if demo else ''}{default}"
-    if "://" in value:
+    if "://" in value or is_motherduck(value):
         return value
     return str(PROJECT_ROOT / value)
 
 
-def duckdb_path() -> Path:
-    """The local DuckDB file dbt builds and the dashboard reads."""
-    return Path(_profile_setting("DUCKDB_PATH", "warehouse.duckdb"))
+def database() -> str:
+    """The DuckDB database holding everything: raw payloads, staging and marts.
+    A local file, or a MotherDuck database as md:<name> (token in MOTHERDUCK_TOKEN)."""
+    return _profile_setting("DATABASE", "warehouse.duckdb")
 
 
-def raw_root() -> str:
-    """Where raw files land (the bronze layer): a local directory, or an fsspec
-    URL such as abfs://raw for Azure Data Lake Storage."""
-    return _profile_setting("RAW_ROOT", "raw")
-
-
-def warehouse_url() -> str | None:
-    """Object storage location the built warehouse is published to and the
-    dashboard reads from, e.g. abfs://warehouse/warehouse.duckdb. Unset locally."""
-    return os.getenv("DEMO_WAREHOUSE_URL" if is_demo() else "WAREHOUSE_URL") or None
+def is_motherduck(database: str) -> bool:
+    return database.startswith("md:")
 
 
 def goal_path() -> str:
-    """Where the training goal is saved: a local path, or an fsspec URL in the
-    cloud, where container disks do not survive a restart."""
+    """Where the training goal is saved: a local path or an fsspec URL."""
     return _profile_setting("GOAL_PATH", "goal.json")
 
 

@@ -53,7 +53,10 @@ def _snapshot(path: Path, directory: Path) -> Path:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    path = config.duckdb_path()
+    database = config.database()
+    if config.is_motherduck(database):
+        raise SystemExit(f"{database} is in MotherDuck; explore it in the MotherDuck web UI instead")
+    path = Path(database)
     if not path.exists():
         raise SystemExit(f"No warehouse at {path}; run `uv run ingest garmin && uv run transform` first")
 

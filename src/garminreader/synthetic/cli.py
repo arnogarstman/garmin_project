@@ -9,8 +9,6 @@ import argparse
 import logging
 from datetime import UTC, date, datetime, timedelta
 
-import fsspec
-
 from garminreader import config
 from garminreader.goal import TrainingGoal, save_goal
 from garminreader.ingest import storage
@@ -41,7 +39,7 @@ def main() -> None:
         parser.error("--days must be at least 60 for the simulated story to fit")
 
     days, activities = build(end=args.end or date.today(), days=args.days, seed=args.seed)
-    logger.info("Simulated %d days and %d activities into %s", days, activities, config.raw_root())
+    logger.info("Simulated %d days and %d activities into %s", days, activities, config.database())
     logger.info("Next: build the models with `DATA_PROFILE=demo uv run transform`")
 
 
@@ -51,10 +49,9 @@ def build(end: date, days: int = 365, seed: int = 42) -> tuple[int, int]:
     if not config.is_demo():
         raise RuntimeError("synthetic data only goes into the demo profile (DATA_PROFILE=demo)")
     states = athlete.simulate(end=end, days=days, seed=seed)
-    fs, root = fsspec.core.url_to_fs(config.raw_root())
-    if fs.exists(root):
-        fs.rm(root, recursive=True)
-    storage.RawStore(fs, root).load("garmin", payloads.records(states, now=datetime.now(UTC)))
+    store = storage.RawStore()
+    store.clear("garmin")
+    store.load("garmin", payloads.records(states, now=datetime.now(UTC)))
     save_goal(DEMO_GOAL.model_copy(update={"event_date": end + timedelta(weeks=8)}))
     return len(states), sum(len(s.activities) for s in states)
 

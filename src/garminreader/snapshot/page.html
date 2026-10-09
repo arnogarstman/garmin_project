@@ -122,15 +122,15 @@ footer{font-size:.8rem;color:var(--muted)}
   <div class="sechead"><h2>How it works</h2><span class="eyebrow">src/garminreader · transform/</span></div>
   <div class="flow">
     <div class="step"><span class="eyebrow">Sources</span><h3>Pluggable ingest</h3><p>Each source implements one interface and is registered in <code>sources/__init__.py</code>. Garmin today; TrainMore and Strava slot in without touching it.</p></div>
-    <div class="step"><span class="eyebrow">Raw</span><h3>Untouched NDJSON</h3><p>API payloads land as-is with load metadata under <code>&lt;source&gt;/endpoint=/load_date=/</code>, committed by a <code>_loads/</code> marker. Local disk or <code>abfs://</code>.</p></div>
+    <div class="step"><span class="eyebrow">Raw</span><h3>Untouched JSON</h3><p>API payloads land as-is with load metadata in <code>raw.payloads</code>, only when new or changed, with a run log in <code>raw.loads</code>. A local DuckDB file or MotherDuck.</p></div>
     <div class="step"><span class="eyebrow">Transform</span><h3>dbt on DuckDB</h3><p>Staging tables keep the newest load per record; marts expose <code>fct_*</code> and <code>rpt_*</code>. No transformation happens in ingest code.</p></div>
-    <div class="step"><span class="eyebrow">Orchestrate</span><h3>Dagster</h3><p>Raw assets partitioned by day, dbt via dagster-dbt, freshness checks, then the warehouse is published. The cloud job runs it once a day.</p></div>
+    <div class="step"><span class="eyebrow">Orchestrate</span><h3>Dagster</h3><p>Raw assets partitioned by day, dbt via dagster-dbt, and freshness checks. One run a day keeps it current.</p></div>
     <div class="step"><span class="eyebrow">Serve</span><h3>Streamlit</h3><p>Reads marts only, through <code>queries.py</code>. Adds an AI coach and training plan against the goal file.</p></div>
   </div>
   <div class="cmds">
     <div>uv run ingest garmin --since 2026-01-01 <span># or resume from last load</span></div>
     <div>uv run transform <span># dbt build</span></div>
-    <div>uv run pipeline <span># ingest, build, checks, publish</span></div>
+    <div>uv run pipeline <span># ingest, build, checks</span></div>
     <div>uv run dashboard</div>
     <div>uv run snapshot <span># this page</span></div>
   </div>

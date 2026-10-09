@@ -6,12 +6,11 @@ weekly samples of predictions) happens here; modelling stays in dbt.
 
 import datetime as dt
 import decimal
-from pathlib import Path
 from typing import Any
 
 import duckdb
 
-from garminreader import config
+from garminreader import config, db
 from garminreader.goal import load_goal
 
 Row = dict[str, Any]
@@ -84,9 +83,9 @@ def _rows(con: duckdb.DuckDBPyConnection, sql: str) -> list[Row]:
     return [dict(zip(columns, map(_jsonable, row), strict=True)) for row in result.fetchall()]
 
 
-def load(warehouse: Path, days: int = 365) -> dict[str, Any]:
+def load(days: int = 365) -> dict[str, Any]:
     """The page payload: the last `days` days of the marts plus the current status and goal."""
-    with duckdb.connect(str(warehouse), read_only=True) as con:
+    with db.connect(read_only=True) as con:
         data: dict[str, Any] = {key: _rows(con, sql.format(days=int(days))) for key, sql in QUERIES.items()}
     data["status"] = data["status"][0] if data["status"] else None
     data["zones"] = data["zones"][0] if data["zones"] else None

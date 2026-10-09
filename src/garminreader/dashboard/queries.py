@@ -9,24 +9,18 @@ from typing import Any
 import duckdb
 import pandas as pd
 
-from garminreader import config, warehouse
+from garminreader import db
 
 
 class WarehouseNotReady(RuntimeError):
-    """The warehouse file or the marts do not exist yet."""
+    """The database or the marts do not exist yet."""
 
 
 def _connect() -> duckdb.DuckDBPyConnection:
-    path = config.duckdb_path()
-    url = config.warehouse_url()
-    if url:
-        try:
-            warehouse.sync_local_copy(url, path)
-        except FileNotFoundError as exc:
-            raise WarehouseNotReady(f"No published warehouse at {url}") from exc
-    if not path.exists():
-        raise WarehouseNotReady(f"No warehouse at {path}")
-    return duckdb.connect(str(path), read_only=True)
+    try:
+        return db.connect(read_only=True)
+    except db.DatabaseNotFound as exc:
+        raise WarehouseNotReady(str(exc)) from exc
 
 
 def _query(sql: str, params: list[Any] | None = None) -> pd.DataFrame:

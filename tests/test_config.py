@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from garminreader import config
@@ -8,32 +6,33 @@ from garminreader import config
 def test_demo_profile_ignores_prod_location_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     """In demo mode, data locations come from DEMO_* settings or data/demo/, never from the prod settings.
 
-    `synthesize` deletes and rewrites the demo raw data, so a prod setting such as RAW_ROOT must
+    `synthesize` deletes and rewrites the demo raw data, so a prod setting such as DATABASE must
     never be able to point it at real data.
     """
     monkeypatch.setenv("DATA_PROFILE", "demo")
-    for key in ("DUCKDB_PATH", "RAW_ROOT", "GOAL_PATH", "WAREHOUSE_URL"):
-        monkeypatch.setenv(key, "data/real")
+    for key in ("DATABASE", "GOAL_PATH"):
+        monkeypatch.setenv(key, "md:real")
         monkeypatch.delenv(f"DEMO_{key}", raising=False)
-    assert config.duckdb_path() == config.PROJECT_ROOT / "data/demo/warehouse.duckdb"
-    assert config.raw_root() == str(config.PROJECT_ROOT / "data/demo/raw")
+    assert config.database() == str(config.PROJECT_ROOT / "data/demo/warehouse.duckdb")
     assert config.goal_path() == str(config.PROJECT_ROOT / "data/demo/goal.json")
-    assert config.warehouse_url() is None
 
 
-def test_object_storage_urls_are_kept_as_is(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A URL such as abfs://raw is passed through untouched; only plain paths resolve against the project root."""
-    monkeypatch.setenv("DATA_PROFILE", "demo")
-    monkeypatch.setenv("DEMO_RAW_ROOT", "abfs://raw")
-    assert config.raw_root() == "abfs://raw"
+def test_motherduck_and_urls_are_kept_as_is(monkeypatch: pytest.MonkeyPatch) -> None:
+    """md:<name> and URLs are passed through untouched; only plain paths resolve against the project root."""
+    monkeypatch.delenv("DATA_PROFILE", raising=False)
+    monkeypatch.setenv("DATABASE", "md:garmin")
+    monkeypatch.setenv("GOAL_PATH", "s3://bucket/goal.json")
+    assert config.database() == "md:garmin"
+    assert config.is_motherduck(config.database())
+    assert config.goal_path() == "s3://bucket/goal.json"
 
 
 def test_prod_is_the_default_profile(monkeypatch: pytest.MonkeyPatch) -> None:
     """Without DATA_PROFILE the real data is used, at its usual location."""
     monkeypatch.delenv("DATA_PROFILE", raising=False)
-    monkeypatch.delenv("DUCKDB_PATH", raising=False)
+    monkeypatch.delenv("DATABASE", raising=False)
     assert not config.is_demo()
-    assert config.duckdb_path() == config.PROJECT_ROOT / Path("data/warehouse.duckdb")
+    assert config.database() == str(config.PROJECT_ROOT / "data/warehouse.duckdb")
 
 
 def test_unknown_profile_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
