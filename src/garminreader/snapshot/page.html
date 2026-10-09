@@ -66,23 +66,26 @@ code{font:.82rem var(--mono);color:var(--ink);background:var(--panel);padding:1p
 .health div{border:1px solid var(--grid);padding:6px 10px;font-size:.82rem;display:flex;gap:8px;align-items:center}
 .health i{width:7px;height:7px;border-radius:50%;background:var(--good);display:block}
 footer{font-size:.8rem;color:var(--muted)}
-.legend b.calkey{width:12px;height:12px;border-radius:3px;border:1px solid var(--grid)}
-.cal{display:grid;gap:28px}
+.cal{display:grid;gap:28px;--k:12.2px}
+.calkeys{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;font-size:.8rem;color:var(--ink2)}
+.calkeys span{display:inline-flex;align-items:center;gap:6px}
+.bub{display:block;width:calc(var(--k) * var(--r));max-width:100%;aspect-ratio:1;border-radius:50%;background:color-mix(in srgb,var(--c1) 85%,transparent);flex:none}
 .month{display:grid;gap:6px}
 .month header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px}
 .month .tot{font:500 .78rem var(--mono);color:var(--ink2)}
 .mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
 .mgrid .dow{font:500 .66rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding:0 4px}
-.day{min-height:64px;border:1px solid var(--grid);border-radius:4px;padding:4px 6px;display:flex;flex-direction:column;gap:2px;min-width:0;background:var(--bg)}
+.day{min-height:112px;border:1px solid var(--grid);border-radius:4px;padding:4px 6px;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
 .day.pad{border-color:transparent;background:transparent}
 .day .dn{font:500 .7rem var(--mono);color:var(--muted)}
 .day.today .dn{color:var(--ink);font-weight:700}
 .day.future{opacity:.45}
-.day .run{display:grid;min-width:0}
-.day .km{font:600 1rem/1.1 var(--display);font-variant-numeric:tabular-nums;color:var(--ink)}
-.day .km small{font-size:.72rem;color:var(--ink2);font-weight:500;margin-left:2px}
-.day .nm{font-size:.72rem;line-height:1.2;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (max-width:640px){.day{min-height:48px;padding:3px}.day .nm{display:none}.day .km{font-size:.85rem}.day .km small{display:none}.mgrid .dow{padding:0;text-align:center}}
+.day .runs{flex:1;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;min-width:0}
+.day .run{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;max-width:100%}
+.day .km{font:600 .9rem/1.1 var(--display);font-variant-numeric:tabular-nums;color:var(--ink)}
+.day .km small{font-size:.7rem;color:var(--ink2);font-weight:500;margin-left:2px}
+.day .nm{font-size:.7rem;line-height:1.2;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+@media (max-width:640px){.cal{--k:7.4px}.day{min-height:66px;padding:2px}.day .runs{gap:2px}.day .nm{display:none}.day .km{font-size:.72rem}.day .km small{display:none}.mgrid .dow{padding:0;text-align:center}}
 .livestate{font-size:.88rem;border-left:3px solid var(--c1);padding:4px 10px}
 .livestate.err{border-color:var(--warn);color:var(--ink)}
 .livebtn{font:500 .85rem var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--grid);border-radius:4px;padding:6px 12px;width:max-content;cursor:pointer}
@@ -136,7 +139,7 @@ footer{font-size:.8rem;color:var(--muted)}
 
 <section>
   <div class="sechead"><h2>Run calendar</h2><span class="eyebrow">marts.fct_activities</span></div>
-  <div class="legend"><span><b class="calkey" style="background:color-mix(in srgb,var(--c1) 12%,var(--bg))"></b>Shorter run</span><span><b class="calkey" style="background:color-mix(in srgb,var(--c1) 40%,var(--bg))"></b>Longer run</span></div>
+  <div class="calkeys cal" id="calkeys"></div>
   <div class="cal" id="cal"></div>
 </section>
 

@@ -175,28 +175,29 @@ function renderPage(D) {
     }
   }
 
-  // Run calendar: one month grid per month with runs, newest first; a cell's tint grows with its km.
+  // Run calendar: one month grid per month with runs, newest first. Each run is a bubble whose
+  // area is proportional to its distance (diameter grows with the square root), on one fixed scale.
   {
     const runs = D.runs || [], byDay = new Map();
     for (const r of runs) { const k = r.activity_date.slice(0, 10); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(r); }
-    const maxKm = Math.max(...[...byDay.values()].map(rs => rs.reduce((s, r) => s + (r.km || 0), 0)), 1);
+    const bubble = km => `<span class="bub" style="--r:${Math.sqrt(Math.max(km || 0, 0.25)).toFixed(3)}"></span>`;
     const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const today = iso(new Date(x1)), months = [];
     if (runs.length) {
       const first = new Date(t(runs[0].activity_date)), last = new Date(x1);
       for (let m = new Date(last.getFullYear(), last.getMonth(), 1); m >= new Date(first.getFullYear(), first.getMonth(), 1); m.setMonth(m.getMonth() - 1)) months.push(new Date(m));
     }
+    $('calkeys').innerHTML = runs.length ? 'Bubble area is proportional to distance:' + [5, 10, 21.1].map(km => `<span>${bubble(km)}${km} km</span>`).join('') : '';
     const dows = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<span class="dow">${d}</span>`).join('');
     $('cal').innerHTML = months.map(m => {
       const y = m.getFullYear(), mo = m.getMonth(), n = new Date(y, mo + 1, 0).getDate(), lead = (m.getDay() + 6) % 7;
       let cells = '<span class="day pad"></span>'.repeat(lead), km = 0, count = 0;
       for (let d = 1; d <= n; d++) {
-        const key = iso(new Date(y, mo, d)), rs = byDay.get(key) || [], dayKm = rs.reduce((s, r) => s + (r.km || 0), 0);
-        km += dayKm; count += rs.length;
-        const bg = rs.length ? `background:color-mix(in srgb,var(--c1) ${Math.round(10 + 32 * dayKm / maxKm)}%,var(--bg))` : '';
+        const key = iso(new Date(y, mo, d)), rs = byDay.get(key) || [];
+        km += rs.reduce((s, r) => s + (r.km || 0), 0); count += rs.length;
         const tip = rs.map(r => `${r.activity_name}: ${num(r.km) ? r.km.toFixed(1) + ' km' : ''}${num(r.min) ? ' in ' + hms(r.min * 60) : ''}${num(r.pace) ? ', ' + pace(r.pace) + ' /km' : ''}`).join('\n');
-        cells += `<div class="day${key === today ? ' today' : ''}${key > today ? ' future' : ''}" style="${bg}"${tip ? ` title="${esc(tip)}"` : ''}><span class="dn">${d}</span>` +
-          rs.map(r => `<div class="run"><span class="km">${num(r.km) ? r.km.toFixed(1) : '–'}<small>km</small></span><span class="nm">${esc(r.activity_name)}</span></div>`).join('') + '</div>';
+        cells += `<div class="day${key === today ? ' today' : ''}${key > today ? ' future' : ''}"${tip ? ` title="${esc(tip)}"` : ''}><span class="dn">${d}</span>` +
+          (rs.length ? '<div class="runs">' + rs.map(r => `<div class="run">${bubble(r.km)}<span class="km">${num(r.km) ? r.km.toFixed(1) : '–'}<small>km</small></span><span class="nm">${esc(r.activity_name)}</span></div>`).join('') + '</div>' : '') + '</div>';
       }
       return `<div class="month"><header><h3>${MON[mo]} ${y}</h3><span class="tot">${count} run${count === 1 ? '' : 's'} · ${km.toFixed(1)} km</span></header><div class="mgrid">${dows}${cells}</div></div>`;
     }).join('') || '<p class="cap">No runs in this period.</p>';
