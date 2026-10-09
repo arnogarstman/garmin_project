@@ -66,13 +66,17 @@ code{font:.82rem var(--mono);color:var(--ink);background:var(--panel);padding:1p
 .health div{border:1px solid var(--grid);padding:6px 10px;font-size:.82rem;display:flex;gap:8px;align-items:center}
 .health i{width:7px;height:7px;border-radius:50%;background:var(--good);display:block}
 footer{font-size:.8rem;color:var(--muted)}
+.livestate{font-size:.88rem;border-left:3px solid var(--c1);padding:4px 10px}
+.livestate.err{border-color:var(--warn);color:var(--ink)}
+.livebtn{font:500 .85rem var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--grid);border-radius:4px;padding:6px 12px;width:max-content;cursor:pointer}
 </style>
 <div class="wrap">
 <header>
   <span class="eyebrow">Personal data pipeline · Garmin Connect → DuckDB → dbt</span>
   <h1>Garminreader</h1>
   <p id="intro">Ingests Garmin Connect data as raw JSON, models it with dbt on DuckDB, and serves a training dashboard.</p>
-  <span class="demo"><i></i><span id="profile"></span> · built <span id="built"></span></span>
+  <span class="demo"><i></i><span id="profile"></span> · <span id="builtlbl">built</span> <span id="built"></span></span>
+  <p class="livestate" id="livestate" role="status" hidden></p><button class="livebtn" id="livebtn" type="button" hidden>Run the query</button>
 </header>
 
 <section>
@@ -132,7 +136,7 @@ footer{font-size:.8rem;color:var(--muted)}
     <div>uv run transform <span># dbt build</span></div>
     <div>uv run pipeline <span># ingest, build, checks</span></div>
     <div>uv run dashboard</div>
-    <div>uv run snapshot <span># this page</span></div>
+    <div>uv run snapshot [--live] <span># this page</span></div>
   </div>
 </section>
 
@@ -143,6 +147,6 @@ footer{font-size:.8rem;color:var(--muted)}
 
 <footer id="footer"></footer>
 </div>
-<script>window.__SNAPSHOT__=/*SNAPSHOT*/null;</script>
+<script>window.__SNAPSHOT__=/*SNAPSHOT*/null;window.__LIVE__=/*LIVE*/null;</script>
 <script>
 /*APP*/</script>
