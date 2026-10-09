@@ -9,6 +9,9 @@ const t = d => new Date(d.slice(0, 10) + 'T00:00:00').getTime();
 const fmtDate = d => { const x = new Date(t(d)); return `${x.getDate()} ${MON[x.getMonth()]}`; };
 const hms = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 const pace = p => { let m = Math.floor(p), s = Math.round((p - m) * 60); if (s === 60) { m += 1; s = 0; } return `${m}:${String(s).padStart(2, '0')}`; };
+// Average pace (min:ss per km) of a half marathon finished in s seconds.
+const HM_KM = 21.0975;
+const hmPace = s => `${pace(s / 60 / HM_KM)} /km`;
 const num = v => typeof v === 'number' && isFinite(v);
 const lower = v => (v ?? '').toString().toLowerCase().replaceAll('_', ' ');
 const median = a => { const b = a.filter(num).sort((x, y) => x - y); return b.length ? b[b.length >> 1] : null; };
@@ -74,7 +77,7 @@ function renderPage(D) {
     tile('Readiness', num(st.readiness_score) ? `${st.readiness_score}<small>/100</small>` : '–', pill(st.readiness_level)),
     tile('VO2 max', num(st.vo2max) ? `${st.vo2max.toFixed(1)}<small>ml/kg/min</small>` : '–', num(vo2Delta) ? `${vo2Delta >= 0 ? '+' : ''}${vo2Delta.toFixed(1)} since ${fmtDate(days[0].d)}` : ''),
     tile('Resting HR', num(st.resting_hr) ? `${st.resting_hr}<small>bpm</small>` : '–', num(st.body_battery_current) ? `Body battery ${st.body_battery_current}` : ''),
-    tile('Half marathon', num(st.predicted_half_marathon_s) ? hms(st.predicted_half_marathon_s) : '–', num(st.predicted_10k_s) ? `Predicted · 10K ${hms(st.predicted_10k_s)}` : 'Predicted'),
+    tile('Half marathon', num(st.predicted_half_marathon_s) ? hms(st.predicted_half_marathon_s) : '–', [num(st.predicted_half_marathon_s) && hmPace(st.predicted_half_marathon_s), num(st.predicted_10k_s) && `10K ${hms(st.predicted_10k_s)}`].filter(Boolean).join(' · ') || 'Predicted'),
     tile('Weight', num(st.weight_kg) ? `${st.weight_kg.toFixed(1)}<small>kg</small>` : '–', num(st.body_fat_pct) ? `Body fat ${st.body_fat_pct}%` : ''),
   ].join('');
 
@@ -101,13 +104,13 @@ function renderPage(D) {
       let s = f.s;
       if (targetS) s += `<line x1="${f.L}" x2="${f.W - f.R}" y1="${f.Y(targetS)}" y2="${f.Y(targetS)}" stroke="${css('c6')}" stroke-dasharray="5 4" stroke-width="1.5"/>`;
       s += `<path d="${path(P, f.X, f.Y)}" fill="none" stroke="${css('c1')}" stroke-width="2.2"/>`;
-      for (const r of races) if (t(r.race_date) >= x0) s += `<circle cx="${f.X(t(r.race_date))}" cy="${f.Y(r.finish_time_s)}" r="5" fill="${css('c3')}" stroke="${css('bg')}" stroke-width="2"><title>${esc(r.activity_name)} ${fmtDate(r.race_date)}: ${hms(r.finish_time_s)}</title></circle>`;
+      for (const r of races) if (t(r.race_date) >= x0) s += `<circle cx="${f.X(t(r.race_date))}" cy="${f.Y(r.finish_time_s)}" r="5" fill="${css('c3')}" stroke="${css('bg')}" stroke-width="2"><title>${esc(r.activity_name)} ${fmtDate(r.race_date)}: ${hms(r.finish_time_s)} (${hmPace(r.finish_time_s)})</title></circle>`;
       const last = P[P.length - 1];
-      $('ch-pred').innerHTML = s + endDot(last, f.X, f.Y, css('c1'), hms(last[1]), 16) + '</svg>';
-      const parts = [`Prediction moved ${hms(Math.abs(P[0][1] - last[1]))} ${last[1] <= P[0][1] ? 'faster' : 'slower'} since ${fmtDate(new Date(P[0][0]).toISOString())}`];
-      if (targetS) parts.push(`it sits ${hms(Math.abs(last[1] - targetS))} ${last[1] > targetS ? 'above' : 'below'} the target`);
+      $('ch-pred').innerHTML = s + endDot(last, f.X, f.Y, css('c1'), `${hms(last[1])} · ${hmPace(last[1])}`, 16) + '</svg>';
+      const parts = [`Prediction moved ${hms(Math.abs(P[0][1] - last[1]))} ${last[1] <= P[0][1] ? 'faster' : 'slower'} since ${fmtDate(new Date(P[0][0]).toISOString())}, from an average pace of ${hmPace(P[0][1])} to ${hmPace(last[1])}`];
+      if (targetS) parts.push(`it sits ${hms(Math.abs(last[1] - targetS))} ${last[1] > targetS ? 'above' : 'below'} the target (${hmPace(targetS)})`);
       let cap = parts.join(' and ') + '.';
-      if (races.length) cap += ' Race times: ' + races.map(r => `${hms(r.finish_time_s)} on ${fmtDate(r.race_date)}`).join(', ') + '.';
+      if (races.length) cap += ' Race times: ' + races.map(r => `${hms(r.finish_time_s)} (${hmPace(r.finish_time_s)}) on ${fmtDate(r.race_date)}`).join(', ') + '.';
       $('cap-pred').textContent = cap;
     }
   }
