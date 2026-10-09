@@ -30,7 +30,7 @@ function livePayload(result) {
 }
 
 function clearPage() {
-  for (const id of ['tiles', 'ch-pred', 'cap-pred', 'ch-km', 'cap-km', 'ch-vo2', 'cap-vo2', 'ch-load', 'cap-load', 'ch-zones', 'health', 'built']) $(id).textContent = '';
+  for (const id of ['tiles', 'ch-pred', 'cap-pred', 'ch-km', 'cap-km', 'ch-vo2', 'cap-vo2', 'ch-load', 'cap-load', 'ch-zones', 'cal', 'health', 'built']) $(id).textContent = '';
   $('recent').querySelector('tbody').textContent = '';
 }
 

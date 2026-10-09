@@ -101,3 +101,4 @@ def test_live_sql_returns_the_snapshot_payload(tmp_path: Path) -> None:
     for key in data.QUERIES:
         assert _same_timestamps(live[key]) == _same_timestamps(snapshot[key]), key
     assert [r["activity_name"] for r in live["recent"]] == [f"Run {i}" for i in range(8)]
+    assert [r["activity_name"] for r in live["runs"]] == [f"Run {i}" for i in reversed(range(10))]

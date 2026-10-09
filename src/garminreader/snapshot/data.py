@@ -65,6 +65,13 @@ QUERIES: dict[str, str] = {
         order by started_at_local desc
         limit 8
     """,
+    "runs": """
+        select started_at_local, activity_date, activity_name, activity_type, round(distance_km, 1) as km,
+               round(duration_min, 1) as min, round(pace_min_per_km, 2) as pace
+        from marts.fct_activities
+        where activity_date > current_date - interval {days} day and activity_type ilike '%run%'
+        order by started_at_local
+    """,
     "lag": "select * from marts.rpt_metric_lag order by metric",
     "status": "select * from marts.rpt_current_status",
 }
@@ -81,6 +88,7 @@ LIST_ORDER: dict[str, str] = {
     "races": "race_date",
     "types": "n desc",
     "recent": "started_at_local desc",
+    "runs": "started_at_local",
     "lag": "metric",
 }
 
