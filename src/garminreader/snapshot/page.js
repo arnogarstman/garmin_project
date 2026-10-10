@@ -446,12 +446,13 @@ function renderPage(D) {
 
   // Goal: the race set on the page (or the dashboard's goal file). A half marathon target also
   // becomes a reference line on the prediction chart.
-  const targetS = G && G.distance === 'half' ? G.targetS : null;
+  const targetS = G && G.targetS ? G.targetS : null;
   $('goaleb').textContent = G
     ? [G.name, R && R.label !== G.name ? R.label : '', G.target, G.date && `${fmtDate(G.date)} · ${Math.round((t(G.date) - x1) / DAY)} days out`].filter(Boolean).join(' · ')
     : 'No race set yet';
   $('lg-target').hidden = !targetS;
 
+  let projection = null;
   // Race-day projection: today's Garmin prediction for the race distance, moved along its trend of
   // the last 8 weeks to race day. The trend is capped at 0.3% a week either way: predictions level
   // off, and a straight line over months would promise too much.
@@ -472,6 +473,7 @@ function renderPage(D) {
       else {
         const capS = now * 0.003 / 7; slope = Math.max(-capS, Math.min(capS, slope));
         const proj = daysOut !== null && daysOut > 0 ? now + slope * daysOut : now;
+        projection = { now, proj, slope, daysOut, raceT };
         const weeks = daysOut !== null ? daysOut / 7 : null;
         const phase = daysOut === null ? 'No date set' : daysOut < 0 ? 'Race day has passed' : daysOut <= 7 ? 'Race week' : daysOut <= 14 ? 'Taper' : daysOut <= 28 ? 'Peak' : daysOut <= 84 ? 'Build' : 'Base';
         let status = 'good', label = 'projection', verdict = `Heading for ${hms(proj)} on race day`, body;
@@ -490,27 +492,52 @@ function renderPage(D) {
     }
   }
 
-  // Half marathon prediction
+  // Prediction for the race distance (half marathon without a race): the weekly Garmin prediction up
+  // to today, then the projection to race day interpolated week by week, with the target line.
   {
-    const P = D.pred.map(r => [t(r.d), r.phm]).filter(p => num(p[1]));
-    const races = D.races.filter(r => /half/i.test(r.race_distance || ''));
+    const C = R || RACES.half, cpace = v => `${pace(v / 60 / C.km)} /km`;
+    const raceRe = { '5k': /(^|[^0-9])5\s?k/i, '10k': /10\s?k/i, half: /half/i, marathon: /^(?!.*half).*marathon/i }[R ? G.distance : 'half'];
+    $('pred-title').textContent = `${C.label} prediction`;
+    const P = D.pred.map(r => [t(r.d), r[C.pred]]).filter(p => num(p[1]));
+    const races = D.races.filter(r => raceRe.test(r.race_distance || ''));
+    const pr = R && projection && projection.daysOut !== null && projection.daysOut > 0 ? projection : null;
+    // The latest prediction (today) closes the weekly series.
+    if (pr && P.length && x1 > P[P.length - 1][0]) P.push([x1, pr.now]);
+    const ahead = pr ? Array.from({ length: Math.floor(pr.daysOut / 7) }, (_, k) => [x1 + (k + 1) * 7 * DAY, pr.now + pr.slope * (k + 1) * 7]).concat([[pr.raceT, pr.proj]]) : [];
+    $('lg-proj').hidden = !pr;
+    $('lg-target').hidden = !(R && targetS);
     if (P.length < 2) empty('ch-pred', 'No race predictions in the warehouse yet.');
     else {
-      const ys = [...P.map(p => p[1]), ...races.map(r => r.finish_time_s), ...(targetS ? [targetS] : [])];
-      const a = Math.floor((Math.min(...ys) - 60) / 300) * 300, b = Math.ceil((Math.max(...ys) + 60) / 300) * 300;
-      const step = (b - a) / 300 > 8 ? 600 : 300, ticks = [];
+      const tgt = R ? targetS : null;
+      const ys = [...P.map(p => p[1]), ...ahead.map(p => p[1]), ...races.map(r => r.finish_time_s), ...(tgt ? [tgt] : [])];
+      const unit = C.km >= HM_KM ? 300 : 60;
+      const a = Math.floor((Math.min(...ys) - unit / 5) / unit) * unit, b = Math.ceil((Math.max(...ys) + unit / 5) / unit) * unit;
+      const step = (b - a) / unit > 8 ? unit * 2 : unit, ticks = [];
       for (let v = a; v <= b; v += step) ticks.push(v);
-      const f = frame({ x0: Math.min(x0, P[0][0]), x1, yTicks: ticks, fmtY: v => hms(v).replace(/:00$/, '') });
+      const xEnd = pr ? Math.max(x1, pr.raceT) : x1;
+      const f = frame({ x0: Math.min(x0, P[0][0]), x1: xEnd, yTicks: ticks, fmtY: v => hms(v).replace(/:00$/, '') });
       let s = f.s;
-      if (targetS) s += `<line x1="${f.L}" x2="${f.W - f.R}" y1="${f.Y(targetS)}" y2="${f.Y(targetS)}" stroke="${css('c6')}" stroke-dasharray="5 4" stroke-width="1.5"/>`;
+      if (tgt) s += `<line x1="${f.L}" x2="${f.W - f.R}" y1="${f.Y(tgt)}" y2="${f.Y(tgt)}" stroke="${css('c6')}" stroke-dasharray="5 4" stroke-width="1.5"/>`;
+      if (pr) {
+        // Today and race day markers, then the dashed projection with a dot per week.
+        s += `<line x1="${f.X(x1)}" x2="${f.X(x1)}" y1="${f.T}" y2="${f.T + f.ih}" stroke="${css('grid')}" stroke-width="1.5"/><text x="${f.X(x1) + 4}" y="${f.T + 10}">today</text>`;
+        s += `<line x1="${f.X(pr.raceT)}" x2="${f.X(pr.raceT)}" y1="${f.T}" y2="${f.T + f.ih}" stroke="${css('c3')}" stroke-width="1.5"/><text x="${f.X(pr.raceT) - 4}" y="${f.T + 10}" text-anchor="end" style="fill:${css('ink2')}">race day</text>`;
+        s += `<path d="${path([[x1, pr.now], ...ahead], f.X, f.Y)}" fill="none" stroke="${css('c1')}" stroke-width="2" stroke-dasharray="6 4"/>`;
+        for (const [x, y] of ahead.slice(0, -1)) s += `<circle cx="${f.X(x)}" cy="${f.Y(y)}" r="3" fill="${css('bg')}" stroke="${css('c1')}" stroke-width="1.5"><title>Week of ${fmtDate(iso(new Date(x)))}: projected ${hms(y)} (${cpace(y)})</title></circle>`;
+      }
       s += `<path d="${path(P, f.X, f.Y)}" fill="none" stroke="${css('c1')}" stroke-width="2.2"/>`;
-      for (const r of races) if (t(r.race_date) >= x0) s += `<circle cx="${f.X(t(r.race_date))}" cy="${f.Y(r.finish_time_s)}" r="5" fill="${css('c3')}" stroke="${css('bg')}" stroke-width="2"><title>${esc(r.activity_name)} ${fmtDate(r.race_date)}: ${hms(r.finish_time_s)} (${hmPace(r.finish_time_s)})</title></circle>`;
+      for (const r of races) if (t(r.race_date) >= x0) s += `<circle cx="${f.X(t(r.race_date))}" cy="${f.Y(r.finish_time_s)}" r="5" fill="${css('c3')}" stroke="${css('bg')}" stroke-width="2"><title>${esc(r.activity_name)} ${fmtDate(r.race_date)}: ${hms(r.finish_time_s)} (${cpace(r.finish_time_s)})</title></circle>`;
       const last = P[P.length - 1];
-      $('ch-pred').innerHTML = s + endDot(last, f.X, f.Y, css('c1'), `${hms(last[1])} · ${hmPace(last[1])}`, 16) + '</svg>';
-      const parts = [`Prediction moved ${hms(Math.abs(P[0][1] - last[1]))} ${last[1] <= P[0][1] ? 'faster' : 'slower'} since ${fmtDate(new Date(P[0][0]).toISOString())}, from an average pace of ${hmPace(P[0][1])} to ${hmPace(last[1])}`];
-      if (targetS) parts.push(`it sits ${hms(Math.abs(last[1] - targetS))} ${last[1] > targetS ? 'above' : 'below'} the target (${hmPace(targetS)})`);
+      s += pr ? `<circle cx="${f.X(last[0])}" cy="${f.Y(last[1])}" r="3.5" fill="${css('c1')}"><title>Today: ${hms(last[1])} (${cpace(last[1])})</title></circle>` : endDot(last, f.X, f.Y, css('c1'), `${hms(last[1])} · ${cpace(last[1])}`, 16);
+      if (pr) s += `<circle cx="${f.X(pr.raceT)}" cy="${f.Y(pr.proj)}" r="5" fill="${css('c1')}" stroke="${css('bg')}" stroke-width="2"><title>Race day ${fmtDate(G.date)}: projected ${hms(pr.proj)} (${cpace(pr.proj)})</title></circle>` +
+        `<text x="${f.X(pr.raceT) - 8}" y="${f.Y(pr.proj) + 18}" text-anchor="end" style="fill:${css('c1')};font-weight:500">${hms(pr.proj)} · ${cpace(pr.proj)}</text>`;
+      $('ch-pred').innerHTML = s + '</svg>';
+      const first = P[0];
+      const parts = [`Prediction moved ${hms(Math.abs(first[1] - last[1]))} ${last[1] <= first[1] ? 'faster' : 'slower'} since ${fmtDate(iso(new Date(first[0])))}, from an average pace of ${cpace(first[1])} to ${cpace(last[1])}`];
+      if (tgt) parts.push(`it sits ${hms(Math.abs(last[1] - tgt))} ${last[1] > tgt ? 'above' : 'below'} the target (${cpace(tgt)})`);
       let cap = parts.join(' and ') + '.';
-      if (races.length) cap += ' Race times: ' + races.map(r => `${hms(r.finish_time_s)} (${hmPace(r.finish_time_s)}) on ${fmtDate(r.race_date)}`).join(', ') + '.';
+      if (pr) cap += ` Projected ${hms(pr.proj)} (${cpace(pr.proj)}) on race day, ${fmtDate(G.date)}: the trend of the last 8 weeks carried forward, capped at 0.3% a week; hover the dots for each week.`;
+      if (races.length) cap += ' Race times: ' + races.map(r => `${hms(r.finish_time_s)} (${cpace(r.finish_time_s)}) on ${fmtDate(r.race_date)}`).join(', ') + '.';
       $('cap-pred').textContent = cap;
     }
   }
