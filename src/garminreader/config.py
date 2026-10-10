@@ -61,6 +61,13 @@ def garmin_token_dir() -> Path:
     return PROJECT_ROOT / os.getenv("GARMIN_TOKEN_DIR", ".garmin_tokens")
 
 
+def garmin_password_login() -> bool:
+    """Whether a Garmin login with GARMIN_EMAIL and GARMIN_PASSWORD may be tried when no saved
+    session works. Scheduled runs set GARMIN_PASSWORD_LOGIN=false: a password login from a cloud
+    runner is what Garmin answers with MFA prompts, captchas or a lockout."""
+    return os.getenv("GARMIN_PASSWORD_LOGIN", "true").strip().lower() not in {"0", "false", "no", "off"}
+
+
 def dbt_project_dir() -> Path:
     return PROJECT_ROOT / "transform"
 

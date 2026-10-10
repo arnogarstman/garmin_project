@@ -1,0 +1,84 @@
+name: refresh
+
+# The daily data refresh: Garmin Connect into MotherDuck, then every dbt model, test and check.
+# Garmin is only reached with the saved session (GARMIN_TOKENS), never with a password login,
+# and a session Garmin refreshes during the run is written back to the secret for the next run.
+# See "Scheduled refresh" in the README for the secrets and the yearly token renewal.
+
+on:
+  schedule:
+    # 04:17 UTC: 06:17 in Amsterdam in summer, 05:17 in winter. Off the hour, when GitHub's
+    # scheduler is least busy.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      partition:
+        description: "Day to ingest, YYYY-MM-DD (default: today in Amsterdam)"
+        required: false
+
+permissions:
+  contents: read
+
+# Never two runs at once: they would both refresh, and race on, the same Garmin session.
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Ingest, build and check
+    # A self-hosted runner at home (repository variable REFRESH_RUNNER=self-hosted) moves the
+    # Garmin calls to a residential IP address if Garmin starts refusing GitHub's.
+    runs-on: ${{ vars.REFRESH_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    env:
+      DATABASE: ${{ vars.DATABASE || 'md:garmin' }}
+      MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+      GARMIN_PASSWORD_LOGIN: "false"
+      GARMIN_TOKEN_DIR: .garmin_tokens
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+
+      - name: Restore the Garmin session
+        env:
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+        run: |
+          if [ -z "$GARMIN_TOKENS" ]; then
+            echo "::error::Secret GARMIN_TOKENS is not set. Create it with: uv run garmin-tokens export | gh secret set GARMIN_TOKENS"
+            exit 1
+          fi
+          umask 077
+          mkdir -p "$GARMIN_TOKEN_DIR"
+          printf '%s' "$GARMIN_TOKENS" > "$GARMIN_TOKEN_DIR/garmin_tokens.json"
+
+      - name: Run the pipeline
+        env:
+          PARTITION: ${{ inputs.partition }}
+        run: uv run pipeline ${PARTITION:+--partition "$PARTITION"}
+
+      # Also after a failed run: the session may have been refreshed before the failure.
+      - name: Save a refreshed Garmin session
+        if: always()
+        env:
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+          GH_TOKEN: ${{ secrets.SECRETS_TOKEN }}
+        run: |
+          file="$GARMIN_TOKEN_DIR/garmin_tokens.json"
+          if [ ! -s "$file" ] || [ "$(cat "$file")" = "$GARMIN_TOKENS" ]; then
+            echo "Garmin session unchanged."
+            exit 0
+          fi
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::Garmin refreshed the session but SECRETS_TOKEN is not set, so the next run may fail. See the README."
+            exit 1
+          fi
+          gh secret set GARMIN_TOKENS --repo "$GITHUB_REPOSITORY" < "$file"
+          echo "Saved the refreshed Garmin session to the GARMIN_TOKENS secret."
+
+      - name: Remove the Garmin session from the runner
+        if: always()
+        run: rm -rf "$GARMIN_TOKEN_DIR"

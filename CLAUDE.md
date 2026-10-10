@@ -29,7 +29,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `src/garminreader/db.py`: the only way to open the database (`DATABASE` in config): a local DuckDB file, or MotherDuck as `md:<name>` with `MOTHERDUCK_TOKEN`.
 - `transform/`: dbt project. `staging/<source>/` tables (newest load wins), `marts/` tables (`fct_*`, `rpt_*`).
 - `src/garminreader/orchestration/`: Dagster assets (raw partitioned by day, dbt via dagster-dbt) and checks.
-- `.github/workflows/`: CI.
+- `.github/workflows/`: CI (`ci.yml`) and the daily refresh against MotherDuck (`refresh.yml`, see the README: it resumes the saved Garmin session from the `GARMIN_TOKENS` secret, never logs in with a password, and writes a refreshed session back).
 - `src/garminreader/dashboard/`: Streamlit app. `queries.py` is its only database access and reads marts only.
 - `src/garminreader/config.py`: all settings, from `.env` (see `.env.example`).
 - `src/garminreader/snapshot/`: `uv run snapshot` renders the marts into one self-contained HTML page (template `page.html` + `page.js`, `plan.js` for the training plan, `goal.js` for the race goal form, `live.js` to boot, live or embedded), for hosting as a static page such as a Claude artifact. Reads marts only.
@@ -44,6 +44,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `DATA_PROFILE=demo uv run synthesize [--days 365] [--seed 42]`: rebuilds the demo warehouse from scratch, ending today; follow with `DATA_PROFILE=demo uv run transform`.
 - `uv run pipeline [--partition YYYY-MM-DD]`: the Dagster job in process (ingest, dbt build, checks); what the daily run executes.
 - `uv run snapshot [--out PATH] [--days 365] [--live]`: static HTML snapshot of the marts; defaults to `data/[demo/]snapshot.html` (gitignored with the data). `--live` (MotherDuck only) embeds no data: the page runs its queries through the viewer's MotherDuck connector when opened, one call per section (the connector caps a result at 50 KB); publish it as an artifact declaring the `mcp` capability for MotherDuck `query`, plus `db` (rules: `settings` written by `admin`) and `user` for the race goal the page saves at `settings/race`.
+- `uv run garmin-tokens login|export`: create the Garmin session on your machine (with MFA) and print it as JSON for the `GARMIN_TOKENS` secret.
 - `uv run dagster dev`: Dagster UI for lineage, partitions and backfills.
 - `uv run explore`: DuckDB UI on a snapshot of a local warehouse taken at startup; never blocks ingest or transform. For MotherDuck use its web UI.
 - Checks: `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest`
