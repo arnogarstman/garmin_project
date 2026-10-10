@@ -140,6 +140,8 @@ function renderPage(D) {
     const hmP = num(st.predicted_half_marathon_s) ? st.predicted_half_marathon_s / 60 / HM_KM : null;
     const easyFrom = hmP && hmP + 1.0, easyTo = hmP && hmP + 1.5;
     let recovery = null;
+    // What the checks found, for the training plan's reasons (plan.js).
+    const sig = { runs, x1, weekStart, thisWeek, covered, wk };
 
     // 1. Recovery: last night against the athlete's own 28-day baseline (the night itself excluded).
     {
@@ -159,6 +161,7 @@ function renderPage(D) {
             ? ['warn', 'watch', 'Some fatigue showing', `${flags[0][0].toUpperCase() + flags[0].slice(1)}. Keep hard work short today or swap it for an easy run.`]
             : ['crit', 'fatigued', 'Under-recovered', `${flags.join(' and ').replace(/^./, c => c.toUpperCase())}. Take a rest day or a very easy 30 minutes.`];
         recovery = status;
+        Object.assign(sig, { recovery, hrvToday: lastDay.hrv, hrvNormal: hrvM });
         cards.push(card('Recovery today', status, label, verdict, advice, kv([
           ['HRV last night', num(lastDay.hrv) ? `${lastDay.hrv} ms` : '–', num(lastDay.hrv) ? `${signed(lastDay.hrv - hrvM)} vs ${hrvM.toFixed(0)}` : ''],
           ['Resting HR', num(lastDay.rhr) ? `${lastDay.rhr} bpm` : '–', num(lastDay.rhr) ? `${signed(lastDay.rhr - rhrM)} vs ${rhrM.toFixed(0)}` : ''],
@@ -175,6 +178,7 @@ function renderPage(D) {
       if (tot < 60) cards.push(none('Intensity balance', 'Needs heart rate zone data from at least an hour of running in the last 4 weeks.'));
       else {
         const pe = easy / tot * 100, pm = mod / tot * 100, ph = hard / tot * 100;
+        Object.assign(sig, { easyShare: pe, zone3Share: pm });
         const [status, label, verdict, advice] = pe >= 75
           ? ['good', 'balanced', 'Mostly easy, as it should be', `${pe.toFixed(0)}% of your running time was easy. That base lets the hard sessions count.`]
           : pm > ph
@@ -204,6 +208,7 @@ function renderPage(D) {
         const xs = easy.map(p => p[0]), ys = easy.map(p => p[1]), mx = mean(xs), my = mean(ys);
         const slope = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0) / (xs.reduce((s, x) => s + (x - mx) ** 2, 0) || 1);
         const fit = x => my + slope * (x - mx), a = xs[0], b = xs[xs.length - 1], chg = (fit(b) / fit(a) - 1) * 100;
+        sig.efficiency = chg;
         const [status, label, verdict] = chg >= 2 ? ['good', 'improving', 'Easy pace is getting cheaper'] : chg > -2 ? ['warn', 'flat', 'Efficiency is holding steady'] : ['crit', 'declining', 'Easy runs cost more than before'];
         const advice = chg >= 2
           ? `You cover ${chg.toFixed(0)}% more ground per heartbeat than at the start of the period. The easy volume is working.`
@@ -246,6 +251,7 @@ function renderPage(D) {
         const lr = recent.reduce((a, r) => r.km > a.km ? r : a), lrWeek = weekStart(lr.activity_date);
         const weekKm = runs.filter(r => weekStart(r.activity_date) === lrWeek).reduce((s, r) => s + r.km, 0);
         const share = weekKm ? lr.km / weekKm * 100 : 0, perWeek = recent.length / 4;
+        Object.assign(sig, { longest: lr.km, runsPerWeek: perWeek });
         const need = (R || RACES.half).longRun, race = (R || RACES.half).label.toLowerCase();
         const [status, label, verdict, advice] = lr.km < need - 2
           ? ['warn', 'short', `Long run is short for a ${race}`, `Your longest run in 4 weeks is ${lr.km.toFixed(1)} km. Add 1 to 2 km a week until it reaches ${need} to ${need + 2} km, run at easy pace.`]
@@ -271,6 +277,7 @@ function renderPage(D) {
       if (long.length < 2 || short.length < 3) cards.push(none('Endurance', 'Needs at least two runs of 75 minutes or more and three easy runs of 25 to 60 minutes in the last 8 weeks.'));
       else {
         const bpk = r => r.avg_hr * r.pace, l = median(long.map(bpk)), sh = median(short.map(bpk)), drift = (l / sh - 1) * 100;
+        sig.drift = drift;
         const [status, label, verdict, advice] = drift <= 3
           ? ['good', 'durable', 'Heart rate holds up over distance', 'Long runs cost about the same per kilometre as your easy runs: a solid aerobic base.']
           : drift <= 7
@@ -292,6 +299,7 @@ function renderPage(D) {
       else {
         const sorted = [...pairs].sort((a, b) => a[0] - b[0]), n = Math.floor(sorted.length / 3);
         const lo = sorted.slice(0, n), hi = sorted.slice(-n), gain = mean(hi.map(p => p[1])) - mean(lo.map(p => p[1]));
+        Object.assign(sig, { sleepGain: gain, goodNight: hi[0][0] });
         const goodNight = hi[0][0], sleep7 = mean(days.slice(-7).map(r => r.sleep).filter(num));
         const [status, label, verdict, advice] = gain < 5
           ? ['good', 'weak link', 'Readiness barely tracks your sleep', 'Your readiness swings more with training load than with sleep. Keep sleep steady and manage load.']
@@ -383,6 +391,7 @@ function renderPage(D) {
     }
 
     $('coach').innerHTML = cards.join('');
+    renderPlan({ G, R, st, sig });
 
     // Week in review: the last complete week (Monday to Sunday) against the week before, with what
     // went well and what to change, the way a coach writes the weekly check-in.
@@ -633,4 +642,3 @@ function renderPage(D) {
   $('health').innerHTML = D.lag.map(r => `<div><i style="background:${r.days_behind > 1 ? css('warn') : css('good')}"></i>${esc(lower(r.metric))} <span class="eyebrow">${r.days_behind}d behind · ${r.completeness_pct}%</span></div>`).join('');
 }
 
-if (!window.__LIVE__) renderPage(window.__SNAPSHOT__);

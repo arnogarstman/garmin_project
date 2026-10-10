@@ -8,10 +8,10 @@ async function startGoal() {
   const box = $('goalform');
   let db = null, user = null;
   try { db = window.claude ? await window.claude.use('db') : null; } catch { db = null; }
-  if (!db) return;
+  if (typeof db?.doc !== 'function') return;
   try { user = await window.claude.use('user'); } catch { user = null; }
   // The page's rules let editors and the owner write the race; others see it read-only.
-  const canWrite = user ? await user.canEdit().catch(() => null) : null;
+  const canWrite = typeof user?.canEdit === 'function' ? await user.canEdit().catch(() => null) : null;
   const ref = db.doc(GOAL_DOC);
   let current = null, editing = false, readOnly = canWrite === false;
 

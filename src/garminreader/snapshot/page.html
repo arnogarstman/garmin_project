@@ -61,6 +61,33 @@ section{display:grid;gap:16px}
 .goalform button{font:500 .88rem var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--grid);border-radius:4px;padding:7px 14px;cursor:pointer}
 .goalform button.primary{background:var(--c1);border-color:var(--c1);color:#fff}
 .goalform .msg{font-size:.85rem;color:var(--warn)}
+.plan{display:grid;gap:14px}
+.pstrip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(64px,1fr);gap:4px;overflow-x:auto;padding-bottom:4px}
+.pw{display:grid;justify-items:center;gap:1px;padding:6px 4px;border:1px solid var(--grid);border-radius:4px;background:var(--bg);color:var(--ink2);font:.68rem var(--mono);cursor:pointer}
+.pw b{font:600 .85rem var(--display);color:var(--ink)}
+.pw .bar{display:flex;align-items:flex-end;height:40px;width:14px}
+.pw .bar i{display:block;width:100%;background:var(--c1);border-radius:3px 3px 0 0;opacity:.55}
+.pw.on{border-color:var(--c1);box-shadow:inset 0 0 0 1px var(--c1)}
+.pw.on .bar i{opacity:1}
+.pw:focus-visible{outline:2px solid var(--c1);outline-offset:1px}
+.pweek{border:1px solid var(--grid);display:grid}
+.phead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;padding:12px 16px 4px}
+.phead .tot{font:500 .78rem var(--mono);color:var(--ink2)}
+.pweek .note{padding:0 16px 10px;font-size:.88rem}
+.prow{display:grid;grid-template-columns:90px minmax(0,1.1fr) minmax(0,1.4fr);gap:6px 16px;padding:10px 16px;border-top:1px solid var(--grid);border-left:3px solid transparent}
+.prow h4{margin:0;font:600 1rem var(--display)}
+.prow h4 .km{font:500 .78rem var(--mono);color:var(--ink2);margin-left:6px}
+.prow p{font-size:.88rem}
+.prow .why{color:var(--ink)}
+.prow .why b{font-weight:600}
+.prow.intervals,.prow.threshold,.prow.race-pace{border-left-color:var(--c6)}
+.prow.long{border-left-color:var(--c5)}.prow.easy,.prow.strides,.prow.shakeout{border-left-color:var(--c2)}
+.prow.race{border-left-color:var(--c3);background:color-mix(in srgb,var(--c3) 8%,transparent)}
+.prow.rest{border-left-color:var(--grid)}
+.prow.past{opacity:.7}
+.pd{display:grid;align-content:start;gap:2px;font-size:.8rem;color:var(--ink2)}
+.pd b{font:600 .95rem var(--display);color:var(--ink)}
+@media (max-width:640px){.prow{grid-template-columns:64px minmax(0,1fr)}.prow .why{grid-column:2}}
 .pill.crit{color:var(--crit);background:color-mix(in srgb,var(--crit) 14%,transparent)}
 .coach{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
 .card{border:1px solid var(--grid);border-top:3px solid var(--grid);padding:14px 16px;display:grid;gap:8px;align-content:start;min-width:0}
@@ -182,6 +209,11 @@ footer{font-size:.8rem;color:var(--muted)}
     <h3>Time in heart rate zone, all activities</h3>
     <div id="ch-zones"></div>
   </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Training plan</h2><span class="eyebrow">Week by week to race day · tap a week</span></div>
+  <div class="plan" id="plan"></div>
 </section>
 
 <section>

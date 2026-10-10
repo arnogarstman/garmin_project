@@ -10,6 +10,10 @@ DATA_MARKER = "/*SNAPSHOT*/null"
 LIVE_MARKER = "/*LIVE*/null"
 APP_MARKER = "/*APP*/"
 
+# The page scripts, in load order: page.js renders, plan.js and goal.js add the training plan and
+# race form, live.js boots the page (live through a connector, or from the embedded snapshot).
+SCRIPTS = ("page.js", "plan.js", "goal.js", "live.js")
+
 # The claude.ai connector and tool a live page queries through; declare them in the
 # artifact's `mcp` capability when publishing.
 LIVE_SERVER = "MotherDuck"
@@ -24,7 +28,7 @@ def _script_json(value: Any) -> str:
 def _fill(snapshot: dict[str, Any] | None, live: dict[str, Any] | None) -> str:
     package = resources.files("garminreader.snapshot")
     template = package.joinpath("page.html").read_text(encoding="utf-8")
-    script = "\n".join(package.joinpath(name).read_text(encoding="utf-8") for name in ("page.js", "goal.js", "live.js"))
+    script = "\n".join(package.joinpath(name).read_text(encoding="utf-8") for name in SCRIPTS)
     return (
         template.replace(DATA_MARKER, _script_json(snapshot))
         .replace(LIVE_MARKER, _script_json(live))

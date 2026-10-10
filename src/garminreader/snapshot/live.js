@@ -35,7 +35,7 @@ function liveRows(result) {
 }
 
 function clearPage() {
-  for (const id of ['tiles', 'review', 'race', 'coach', 'ch-pred', 'cap-pred', 'ch-km', 'cap-km', 'ch-vo2', 'cap-vo2', 'ch-load', 'cap-load', 'ch-zones', 'cal', 'calkeys', 'health', 'built']) $(id).textContent = '';
+  for (const id of ['tiles', 'review', 'race', 'coach', 'plan', 'ch-pred', 'cap-pred', 'ch-km', 'cap-km', 'ch-vo2', 'cap-vo2', 'ch-load', 'cap-load', 'ch-zones', 'cal', 'calkeys', 'health', 'built']) $(id).textContent = '';
   $('recent').querySelector('tbody').textContent = '';
 }
 
@@ -102,4 +102,6 @@ async function startLive(cfg) {
   }
 }
 
+// Boot: live data through the connector, or the embedded snapshot.
 if (window.__LIVE__) startLive(window.__LIVE__);
+else renderPage(window.__SNAPSHOT__);

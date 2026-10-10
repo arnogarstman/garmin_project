@@ -32,7 +32,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `.github/workflows/`: CI.
 - `src/garminreader/dashboard/`: Streamlit app. `queries.py` is its only database access and reads marts only.
 - `src/garminreader/config.py`: all settings, from `.env` (see `.env.example`).
-- `src/garminreader/snapshot/`: `uv run snapshot` renders the marts into one self-contained HTML page (template `page.html` + `page.js`, `goal.js` for the race goal form, `live.js` for live mode), for hosting as a static page such as a Claude artifact. Reads marts only.
+- `src/garminreader/snapshot/`: `uv run snapshot` renders the marts into one self-contained HTML page (template `page.html` + `page.js`, `plan.js` for the training plan, `goal.js` for the race goal form, `live.js` to boot, live or embedded), for hosting as a static page such as a Claude artifact. Reads marts only.
 - `src/garminreader/synthetic/`: demo data. A simulated athlete rendered as raw Garmin API responses, so the real pipeline runs on it unchanged.
 - `DATA_PROFILE`: `prod` (default, your data in `data/`) or `demo` (synthetic, in `data/demo/`, safe to publish). Real ingest is refused in demo; `synthesize` is refused in prod.
 
