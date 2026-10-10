@@ -54,12 +54,23 @@ def complete_mfa(api: Garmin, code: str) -> None:
     _persist_tokens(api)
 
 
+PASSWORD_LOGIN_DISABLED = (
+    "No working Garmin session (the saved tokens are missing, expired or were refused), and password "
+    "login is disabled (GARMIN_PASSWORD_LOGIN=false). "
+    "Renew the session on your own machine with `uv run garmin-tokens login`, then update the "
+    "GARMIN_TOKENS secret with `uv run garmin-tokens export | gh secret set GARMIN_TOKENS`."
+)
+
+
 def connect() -> Garmin:
     """Session for unattended use: cached tokens first, then GARMIN_EMAIL and
-    GARMIN_PASSWORD from .env. Asks for an MFA code only on a terminal."""
+    GARMIN_PASSWORD from .env unless password login is disabled (scheduled runs).
+    Asks for an MFA code only on a terminal."""
     api = try_resume_session()
     if api is not None:
         return api
+    if not config.garmin_password_login():
+        raise GarminConnectAuthenticationError(PASSWORD_LOGIN_DISABLED)
     api, status = begin_login(config.require_env("GARMIN_EMAIL"), config.require_env("GARMIN_PASSWORD"))
     if status == "mfa":
         if not sys.stdin.isatty():

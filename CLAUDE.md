@@ -32,7 +32,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `.github/workflows/`: CI (`ci.yml`) and the daily run on real data into MotherDuck (`daily.yml`, secrets `MOTHERDUCK_TOKEN`, `GARMIN_EMAIL`, `GARMIN_PASSWORD`, optional `GARMINTOKENS`).
 - `src/garminreader/dashboard/`: Streamlit app. `queries.py` is its only database access and reads marts only.
 - `src/garminreader/config.py`: all settings, from `.env` (see `.env.example`).
-- `src/garminreader/snapshot/`: `uv run snapshot` renders the marts into one self-contained HTML page (template `page.html` + `page.js`), for hosting as a static page such as a Claude artifact. Reads marts only.
+- `src/garminreader/snapshot/`: `uv run snapshot` renders the marts into one self-contained HTML page (template `page.html` + `page.js`, `plan.js` for the training plan, `goal.js` for the race goal form, `live.js` to boot, live or embedded), for hosting as a static page such as a Claude artifact. Reads marts only.
 - `src/garminreader/synthetic/`: demo data. A simulated athlete rendered as raw Garmin API responses, so the real pipeline runs on it unchanged.
 - `DATA_PROFILE`: `prod` (default, your data in `data/`) or `demo` (synthetic, in `data/demo/`, safe to publish). Real ingest is refused in demo; `synthesize` is refused in prod.
 
@@ -43,7 +43,8 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `uv run dashboard`
 - `DATA_PROFILE=demo uv run synthesize [--days 365] [--seed 42]`: rebuilds the demo warehouse from scratch, ending today; follow with `DATA_PROFILE=demo uv run transform`.
 - `uv run pipeline [--partition YYYY-MM-DD]`: the Dagster job in process (ingest, dbt build, checks); what the daily run executes.
-- `uv run snapshot [--out PATH] [--days 365]`: static HTML snapshot of the marts; defaults to `data/[demo/]snapshot.html` (gitignored with the data).
+- `uv run snapshot [--out PATH] [--days 365] [--live]`: static HTML snapshot of the marts; defaults to `data/[demo/]snapshot.html` (gitignored with the data). `--live` (MotherDuck only) embeds no data: the page runs its queries through the viewer's MotherDuck connector when opened, one call per section (the connector caps a result at 50 KB); publish it as an artifact declaring the `mcp` capability for MotherDuck `query`, plus `db` (rules: `settings` written by `admin`) and `user` for the race goal the page saves at `settings/race`.
+- `uv run garmin-tokens login|export`: create the Garmin session on your machine (with MFA) and print it as JSON for the `GARMIN_TOKENS` secret.
 - `uv run dagster dev`: Dagster UI for lineage, partitions and backfills.
 - `uv run doctor`: checks every connection (Garmin, database, dbt, Anthropic) with the settings from `.env`; exits non-zero on a failure.
 - `uv run explore`: DuckDB UI on a snapshot of a local warehouse taken at startup; never blocks ingest or transform. For MotherDuck use its web UI.

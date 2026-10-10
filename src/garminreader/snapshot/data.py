@@ -1,7 +1,8 @@
 """Reads the marts into the JSON-ready payload the snapshot page renders.
 
 Reads marts only, like the dashboard. Aggregation for display (weekly sums,
-weekly samples of predictions) happens here; modelling stays in dbt.
+weekly samples of predictions) happens here; modelling stays in dbt. The same
+queries feed the live page, which runs each one through a connector.
 """
 
 import datetime as dt
@@ -64,9 +65,21 @@ QUERIES: dict[str, str] = {
         order by started_at_local desc
         limit 8
     """,
+    "runs": """
+        select activity_date, activity_name, round(distance_km, 1) as km, round(duration_min, 1) as min,
+               round(pace_min_per_km, 2) as pace, round(avg_hr) as avg_hr, round(hr_zone_1_min, 1) as z1,
+               round(hr_zone_2_min, 1) as z2, round(hr_zone_3_min, 1) as z3, round(hr_zone_4_min, 1) as z4,
+               round(hr_zone_5_min, 1) as z5
+        from marts.fct_activities
+        where activity_date > current_date - interval {days} day and activity_type ilike '%run%'
+        order by started_at_local
+    """,
     "lag": "select * from marts.rpt_metric_lag order by metric",
     "status": "select * from marts.rpt_current_status",
 }
+
+# Single-row queries: the payload holds the row itself, or null.
+SINGLE_ROW = frozenset({"status", "zones"})
 
 
 def _jsonable(value: Any) -> Any:
@@ -87,10 +100,20 @@ def load(days: int = 365) -> dict[str, Any]:
     """The page payload: the last `days` days of the marts plus the current status and goal."""
     with db.connect(read_only=True) as con:
         data: dict[str, Any] = {key: _rows(con, sql.format(days=int(days))) for key, sql in QUERIES.items()}
-    data["status"] = data["status"][0] if data["status"] else None
-    data["zones"] = data["zones"][0] if data["zones"] else None
-    goal = load_goal()
-    data["goal"] = goal.model_dump(mode="json") if goal else None
-    data["profile"] = config.data_profile()
+    for key in SINGLE_ROW:
+        data[key] = data[key][0] if data[key] else None
+    data.update(context())
     data["built_at"] = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
     return data
+
+
+def context() -> dict[str, Any]:
+    """What the page shows besides the marts: the training goal and the data profile."""
+    goal = load_goal()
+    return {"goal": goal.model_dump(mode="json") if goal else None, "profile": config.data_profile()}
+
+
+def live_queries(days: int = 365) -> dict[str, str]:
+    """The payload's queries as the live page runs them, one connector call each: a
+    connector caps the size of one result, so the marts do not travel as one value."""
+    return {key: sql.format(days=int(days)).strip() for key, sql in QUERIES.items()}

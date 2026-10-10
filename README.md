@@ -42,7 +42,7 @@ flowchart LR
 - **An append-only raw layer.** Change detection compares each payload with the latest stored version of the same source, endpoint and params, so overlapping re-fetches store nothing new while real changes are kept as history. Records and their run-log row commit together ([storage.py](src/garminreader/ingest/storage.py)).
 - **A synthetic athlete in the exact API format.** It simulates a year of training: fitness and fatigue loads, VO2 max, race times from Daniels' VDOT formulas, an illness, and two half marathons. It writes raw Garmin-shaped records, so the real loader, every dbt model and the dashboard run on it unchanged. A contract test fails if the real source gains an endpoint the generator does not cover ([synthetic/](src/garminreader/synthetic/)).
 - **Real and demo data kept apart.** `DATA_PROFILE=prod|demo`. Demo locations read `DEMO_*` settings only, real ingest refuses to run in demo, and the demo dashboard disables Garmin refresh. The public demo can never contain personal data.
-- **No infrastructure to run.** Everything lives in one DuckDB database: a local file, or MotherDuck when `DATABASE=md:<name>`. The daily run is `uv run pipeline` from any scheduler.
+- **No infrastructure to run.** Everything lives in one DuckDB database: a local file, or MotherDuck when `DATABASE=md:<name>`. The daily run is `uv run pipeline` from any scheduler; a GitHub Actions workflow runs it every morning without ever logging in to Garmin with a password ([Scheduled refresh](#scheduled-refresh)).
 
 ## Run it
 
@@ -70,6 +70,27 @@ uv run dashboard
 **Through Dagster:** `uv run pipeline` runs ingest, dbt build and the checks in process. `uv run dagster dev` opens the UI for lineage, partitions and backfills.
 
 Without `--since`, ingest resumes from the last load minus one day, because Garmin keeps updating recent days after late watch syncs.
+
+### Scheduled refresh
+
+[`.github/workflows/refresh.yml`](.github/workflows/refresh.yml) runs `uv run pipeline` against MotherDuck every morning (04:17 UTC, about 06:00 in Amsterdam) and can be started by hand from the Actions tab, optionally for one day. Each run ingests that day and the day before: about 18 calls to Garmin.
+
+It never logs in with a password. A password login from a cloud runner is what makes Garmin ask for MFA, show a captcha or lock the account, so the run only resumes a session you created on your own machine, and fails clearly (with an email from GitHub) when that session stops working.
+
+One-time setup, from a clone with your `.env`:
+
+```sh
+uv run garmin-tokens login                                  # password and MFA code, on your machine
+uv run garmin-tokens export | gh secret set GARMIN_TOKENS   # the session, as a repository secret
+gh secret set MOTHERDUCK_TOKEN                              # paste the MotherDuck token
+gh secret set SECRETS_TOKEN                                 # paste a fine-grained token, see below
+```
+
+`SECRETS_TOKEN` is a [fine-grained personal access token](https://github.com/settings/personal-access-tokens) for this repository only, with the permission *Secrets: Read and write*. Garmin can hand out a new refresh token when the session refreshes; the workflow then writes the new session back to `GARMIN_TOKENS` so the next run still works. Without this token a refreshed session is not saved and the run fails with an error saying so.
+
+When the run fails with "No working Garmin session": run the two `garmin-tokens` commands above again. Expect that about once a year, or after a password change.
+
+If Garmin starts refusing GitHub's IP addresses, run the same workflow on a machine at home: [add a self-hosted runner](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners) (it needs uv and the GitHub CLI) and set the repository variable `REFRESH_RUNNER` to `self-hosted`. GitHub keeps scheduling, logging and alerting; only the Garmin calls come from your own connection.
 
 ## Quality
 
