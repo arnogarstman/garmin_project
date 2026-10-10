@@ -53,7 +53,41 @@ const lastValid = pts => [...pts].reverse().find(p => num(p[1]));
 
 const INTRO = document.getElementById('intro').textContent;
 
+// Race distances: label, km, the prediction column in D.pred, the field in D.status, and the long run
+// a coach wants covered before race day.
+const RACES = {
+  '5k': { label: '5K', km: 5, pred: 'p5', status: 'predicted_5k_s', longRun: 8 },
+  '10k': { label: '10K', km: 10, pred: 'p10', status: 'predicted_10k_s', longRun: 12 },
+  half: { label: 'Half marathon', km: HM_KM, pred: 'phm', status: 'predicted_half_marathon_s', longRun: 16 },
+  marathon: { label: 'Marathon', km: 42.195, pred: 'pm', status: 'predicted_marathon_s', longRun: 28 },
+};
+// A finish time in seconds from h:mm:ss, or from two parts read as h:mm for a half or full
+// marathon and as mm:ss for shorter races.
+function parseTarget(text, distance) {
+  const m = /^\s*(\d+):(\d{2})(?::(\d{2}))?\s*$/.exec(text || '');
+  if (!m) return null;
+  if (m[3] !== undefined) return +m[1] * 3600 + +m[2] * 60 + +m[3];
+  return distance === 'half' || distance === 'marathon' ? +m[1] * 3600 + +m[2] * 60 : +m[1] * 60 + +m[2];
+}
+// The race goal saved on the page (goal.js), else the dashboard's goal file embedded at build time.
+let pageGoal = null;
+function raceGoal(D) {
+  const g = pageGoal;
+  if (g && RACES[g.distance]) return { name: g.race || RACES[g.distance].label, distance: g.distance, date: g.event_date || null, target: g.target || '', targetS: parseTarget(g.target, g.distance) };
+  const f = D.goal;
+  if (!f) return null;
+  const text = `${f.goal} ${f.target || ''}`;
+  const distance = /half/i.test(text) ? 'half' : /marathon/i.test(text) ? 'marathon' : /10\s?k/i.test(text) ? '10k' : /5\s?k/i.test(text) ? '5k' : null;
+  const time = (/(\d+:\d{2}(?::\d{2})?)/.exec(f.target || '') || [])[1];
+  return { name: f.goal, distance, date: f.event_date || null, target: f.target || '', targetS: distance ? parseTarget(time, distance) : null };
+}
+// Render again with the last payload, e.g. when the race goal changes.
+let lastD = null;
+const rerender = () => { if (lastD) renderPage(lastD); };
+
 function renderPage(D) {
+  lastD = D;
+  const G = raceGoal(D), R = G && RACES[G.distance];
   // Header
   const demo = D.profile === 'demo';
   $('built').textContent = new Date(D.built_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -212,11 +246,12 @@ function renderPage(D) {
         const lr = recent.reduce((a, r) => r.km > a.km ? r : a), lrWeek = weekStart(lr.activity_date);
         const weekKm = runs.filter(r => weekStart(r.activity_date) === lrWeek).reduce((s, r) => s + r.km, 0);
         const share = weekKm ? lr.km / weekKm * 100 : 0, perWeek = recent.length / 4;
-        const [status, label, verdict, advice] = lr.km < 14
-          ? ['warn', 'short', 'Long run is short for a half', `Your longest run in 4 weeks is ${lr.km.toFixed(1)} km. Add 1 to 2 km a week until it reaches 16 to 18 km, run at easy pace.`]
+        const need = (R || RACES.half).longRun, race = (R || RACES.half).label.toLowerCase();
+        const [status, label, verdict, advice] = lr.km < need - 2
+          ? ['warn', 'short', `Long run is short for a ${race}`, `Your longest run in 4 weeks is ${lr.km.toFixed(1)} km. Add 1 to 2 km a week until it reaches ${need} to ${need + 2} km, run at easy pace.`]
           : share > 40
             ? ['warn', 'lopsided', 'Too much of the week in one run', `That run was ${share.toFixed(0)}% of its week. Spread volume so the long run is about 30%; it recovers faster and injures less.`]
-            : ['good', 'on track', lr.km >= 18 ? 'Half marathon distance is covered' : 'Long run is building well', `Your longest run is ${lr.km.toFixed(1)} km, ${share.toFixed(0)}% of its week. ${lr.km >= 18 ? 'Hold it here and add some race-pace kilometres late in the run.' : 'Keep extending it gradually toward 16 to 18 km.'}`];
+            : ['good', 'on track', lr.km >= need + 2 ? `Long run covers the ${race}` : 'Long run is building well', `Your longest run is ${lr.km.toFixed(1)} km, ${share.toFixed(0)}% of its week. ${lr.km >= need + 2 ? 'Hold it here and add some race-pace kilometres late in the run.' : `Keep extending it gradually toward ${need} to ${need + 2} km.`}`];
         cards.push(card('Long run · 4 weeks', status, label, verdict, advice, kv([
           ['Longest run', `${lr.km.toFixed(1)} km`, fmtDate(lr.activity_date)],
           ['Share of its week', `${share.toFixed(0)}%`, `of ${weekKm.toFixed(0)} km`],
@@ -225,6 +260,29 @@ function renderPage(D) {
       }
     }
 
+
+    // Endurance: heartbeats per km on long runs against shorter easy runs, from run averages
+    // (8 weeks). A large gap means heart rate drifts up as runs get long: aerobic durability,
+    // fuelling or heat. Approximate: per-lap data would show the drift within a run.
+    {
+      const pool = runs.filter(r => t(r.activity_date) > x1 - 56 * DAY && num(r.avg_hr) && num(r.pace) && num(r.min));
+      const cut = median(pool.map(r => r.avg_hr));
+      const long = pool.filter(r => r.min >= 75), short = pool.filter(r => r.min >= 25 && r.min < 60 && r.avg_hr <= cut);
+      if (long.length < 2 || short.length < 3) cards.push(none('Endurance', 'Needs at least two runs of 75 minutes or more and three easy runs of 25 to 60 minutes in the last 8 weeks.'));
+      else {
+        const bpk = r => r.avg_hr * r.pace, l = median(long.map(bpk)), sh = median(short.map(bpk)), drift = (l / sh - 1) * 100;
+        const [status, label, verdict, advice] = drift <= 3
+          ? ['good', 'durable', 'Heart rate holds up over distance', 'Long runs cost about the same per kilometre as your easy runs: a solid aerobic base.']
+          : drift <= 7
+            ? ['warn', 'some drift', 'Heart rate creeps up on long runs', 'Start long runs slower, and take fluid and carbohydrate every 30 to 40 minutes once runs pass 75 minutes.']
+            : ['crit', 'big drift', 'Long runs cost a lot more per km', 'Heart rate climbs well above your easy runs. Keep long runs truly easy, fuel and drink from the start, and build their length slowly.'];
+        cards.push(card('Endurance · 8 weeks', status, label, verdict, `${advice} Approximate: from run averages, not laps.`, kv([
+          ['Long runs (75+ min)', `${Math.round(l)} beats/km`, `${long.length} runs`],
+          ['Easy runs (25–60 min)', `${Math.round(sh)} beats/km`, `${short.length} runs`],
+          ['Difference', `${signed(drift)}%`, 'under 3% is good'],
+        ])));
+      }
+    }
 
     // 6. Sleep and readiness: how much a good night moves the next morning's readiness, from the
     // athlete's own history (top third of nights by sleep score against the bottom third).
@@ -303,34 +361,125 @@ function renderPage(D) {
         const builds = full.slice(0, 3).every((v, i, a) => i === a.length - 1 || v > a[i + 1]) && full.length >= 3;
         const longest = Math.max(0, ...recent.map(r => r.km));
         let target, why, status = 'good', label = 'build';
-        if (recovery === 'crit' || (acwr && acwr > 1.5)) { target = lastKm * 0.7; why = 'You are carrying fatigue: an easier week first.'; status = 'warn'; label = 'recover'; }
+        const daysOut = G && G.date ? Math.round((t(G.date) - x1) / DAY) : null;
+        if (daysOut !== null && daysOut >= 0 && daysOut <= 14) { target = lastKm * (daysOut <= 7 ? 0.5 : 0.7); why = `${G.name} is ${daysOut} days away: cut volume, keep a little race-pace work so the legs stay sharp.`; label = 'taper'; }
+        else if (recovery === 'crit' || (acwr && acwr > 1.5)) { target = lastKm * 0.7; why = 'You are carrying fatigue: an easier week first.'; status = 'warn'; label = 'recover'; }
         else if (builds) { target = lastKm * 0.75; why = 'Three weeks of building: time for a lighter week to absorb it.'; label = 'down week'; }
         else if (acwr && acwr > 1.3) { target = lastKm; why = 'Load is already climbing fast: hold volume this week.'; label = 'hold'; }
         else { target = lastKm * 1.08; why = 'Room to grow: about 8% more than last week.'; }
         const runsPerWeek = Math.max(3, Math.round(recent.length / 4));
-        const longKm = label === 'build' ? Math.min(longest + 1.5, 21, target * 0.35) : Math.min(longest, target * 0.35);
+        const cap = R ? Math.max(R.longRun + 4, R.km) : 21;
+        const longKm = label === 'build' ? Math.min(longest + 1.5, cap, target * 0.35) : Math.min(longest, target * 0.35);
         const hard = label === 'build' || label === 'hold';
-        const quality = hard ? 'one threshold run and one interval session at the paces in Training paces' : 'only some short strides at the end of an easy run';
+        const quality = hard ? 'one threshold run and one interval session at the paces in Training paces'
+          : label === 'taper' ? 'one short session at race pace' : 'only some short strides at the end of an easy run';
         cards.push(card('Next week', status, label, `Aim for about ${Math.round(target)} km`, `${why} Spread it over ${runsPerWeek} runs: ${quality}, the rest easy.`, kv([
           ['Total', `${Math.round(target)} km`, `last week ${lastKm.toFixed(0)} km`],
           ['Long run', `${longKm.toFixed(0)} km`, easyFrom ? `at ${pace(easyFrom + 0.1)}–${pace(easyTo)} /km` : 'easy pace'],
-          ['Quality sessions', hard ? '2' : '0', hard ? 'threshold + intervals' : 'strides only'],
+          ['Quality sessions', hard ? '2' : label === 'taper' ? '1' : '0', hard ? 'threshold + intervals' : label === 'taper' ? 'race pace' : 'strides only'],
           ['Runs', `${runsPerWeek}`, 'rest of them easy'],
         ])));
       }
     }
 
     $('coach').innerHTML = cards.join('');
+
+    // Week in review: the last complete week (Monday to Sunday) against the week before, with what
+    // went well and what to change, the way a coach writes the weekly check-in.
+    {
+      const w1 = thisWeek - 7 * DAY, w0 = thisWeek - 14 * DAY;
+      const inWeek = (rows, key, start) => rows.filter(r => t(r[key]) >= start && t(r[key]) < start + 7 * DAY);
+      const stats = start => {
+        const rs = inWeek(runs, 'activity_date', start), ds = inWeek(days, 'd', start);
+        const z = k => rs.reduce((s, r) => s + (num(r[k]) ? r[k] : 0), 0), zt = z('z1') + z('z2') + z('z3') + z('z4') + z('z5');
+        const avg = k => mean(ds.map(r => r[k]).filter(num));
+        return { km: rs.reduce((s, r) => s + r.km, 0), n: rs.length, min: rs.reduce((s, r) => s + (num(r.min) ? r.min : 0), 0),
+          longest: Math.max(0, ...rs.map(r => r.km)), easy: zt ? (z('z1') + z('z2')) / zt * 100 : null,
+          sleep: avg('sleep'), hrv: avg('hrv'), ready: avg('ready'), rhr: avg('rhr') };
+      };
+      if (w0 < covered - 7 * DAY || !runs.length) $('review').innerHTML = '<p class="cap">Needs two complete weeks of data.</p>';
+      else {
+        const a = stats(w1), b = stats(w0), well = [], change = [];
+        const pct = (x, y) => num(x) && num(y) && y ? (x / y - 1) * 100 : null;
+        const dk = pct(a.km, b.km);
+        if (dk !== null && dk > 10) change.push(`Volume jumped ${dk.toFixed(0)}%. Hold it there next week before building again.`);
+        else if (dk !== null && dk >= 0) well.push(`Volume grew a sustainable ${dk.toFixed(0)}%.`);
+        else if (dk !== null && dk < -30) change.push(`Volume dropped ${Math.abs(dk).toFixed(0)}%. Fine if planned; otherwise pick it back up gradually.`);
+        if (a.n >= 3) well.push(`${a.n} runs: consistent.`); else change.push(`Only ${a.n} run${a.n === 1 ? '' : 's'}. Aim for at least three, even short ones.`);
+        if (num(a.easy)) { if (a.easy >= 75) well.push(`${a.easy.toFixed(0)}% of running time was easy.`); else if (a.easy < 65) change.push(`Only ${a.easy.toFixed(0)}% of running was easy. Slow the easy days down.`); }
+        if (a.longest > b.longest && a.longest >= 10) well.push(`Long run went up to ${a.longest.toFixed(1)} km.`);
+        const dh = pct(a.hrv, b.hrv);
+        if (dh !== null && dh <= -5) change.push(`HRV dipped ${Math.abs(dh).toFixed(0)}% on the week before. If it keeps falling, ease off.`);
+        else if (dh !== null && dh >= 3) well.push(`HRV rose ${dh.toFixed(0)}%: you are absorbing the training.`);
+        const dr = num(a.ready) && num(b.ready) ? a.ready - b.ready : null;
+        if (dr !== null && dr <= -10) change.push(`Readiness averaged ${a.ready.toFixed(0)}, ${Math.abs(dr).toFixed(0)} points below the week before: keep next week's hard sessions short.`);
+        if (num(a.sleep) && num(b.sleep) && a.sleep < b.sleep - 4) change.push(`Sleep score fell from ${b.sleep.toFixed(0)} to ${a.sleep.toFixed(0)}.`);
+        else if (num(a.sleep) && a.sleep >= 80) well.push(`Sleep averaged ${a.sleep.toFixed(0)}.`);
+        const f = (v, d = 0, u = '') => num(v) ? `${v.toFixed(d)}${u}` : '–';
+        const delta = (x, y, d = 0, u = '') => num(x) && num(y) ? `${x - y >= 0 ? '+' : '−'}${Math.abs(x - y).toFixed(d)}${u}` : '';
+        const rows = [
+          ['Distance', f(a.km, 1, ' km'), f(b.km, 1, ' km'), delta(a.km, b.km, 1, ' km')],
+          ['Runs', f(a.n), f(b.n), delta(a.n, b.n)],
+          ['Time running', hms(a.min * 60).replace(/:\d{2}$/, ''), hms(b.min * 60).replace(/:\d{2}$/, ''), delta(a.min / 60, b.min / 60, 1, ' h')],
+          ['Longest run', f(a.longest, 1, ' km'), f(b.longest, 1, ' km'), delta(a.longest, b.longest, 1, ' km')],
+          ['Easy share', f(a.easy, 0, '%'), f(b.easy, 0, '%'), delta(a.easy, b.easy, 0, ' pt')],
+          ['Sleep score', f(a.sleep), f(b.sleep), delta(a.sleep, b.sleep)],
+          ['HRV', f(a.hrv, 0, ' ms'), f(b.hrv, 0, ' ms'), delta(a.hrv, b.hrv, 0, ' ms')],
+          ['Readiness', f(a.ready), f(b.ready), delta(a.ready, b.ready)],
+        ];
+        const list = (title, items, cls) => `<div class="notes ${cls}"><h3>${title}</h3>${items.length ? `<ul>${items.slice(0, 3).map(x => `<li>${x}</li>`).join('')}</ul>` : '<p>Nothing stood out.</p>'}</div>`;
+        $('review').innerHTML = `<div class="tbl"><table><thead><tr><th></th><th class="n">Week of ${fmtDate(iso(new Date(w1)))}</th><th class="n">Week before</th><th class="n">Change</th></tr></thead><tbody>` +
+          rows.map(r => `<tr><td>${r[0]}</td><td class="n"><b>${r[1]}</b></td><td class="n">${r[2]}</td><td class="n">${r[3]}</td></tr>`).join('') + '</tbody></table></div>' +
+          `<div class="notes-wrap">${list('Went well', well, 'good')}${list('To change', change, 'warn')}</div>`;
+      }
+    }
   }
 
-  // Goal: a half marathon target such as "under 1:40" becomes a reference line.
-  const G = D.goal;
-  const targetMatch = G && /half/i.test(G.goal) && /(\d+):(\d{2})(?::(\d{2}))?/.exec(G.target || '');
-  const targetS = targetMatch ? (+targetMatch[1]) * 3600 + (+targetMatch[2]) * 60 + (+(targetMatch[3] || 0)) : null;
+  // Goal: the race set on the page (or the dashboard's goal file). A half marathon target also
+  // becomes a reference line on the prediction chart.
+  const targetS = G && G.distance === 'half' ? G.targetS : null;
   $('goaleb').textContent = G
-    ? [G.goal, G.target, G.event_date && `${fmtDate(G.event_date)} · ${Math.round((t(G.event_date) - x1) / DAY)} days out`].filter(Boolean).join(' · ')
-    : 'No goal set in the dashboard';
+    ? [G.name, R && R.label !== G.name ? R.label : '', G.target, G.date && `${fmtDate(G.date)} · ${Math.round((t(G.date) - x1) / DAY)} days out`].filter(Boolean).join(' · ')
+    : 'No race set yet';
   $('lg-target').hidden = !targetS;
+
+  // Race-day projection: today's Garmin prediction for the race distance, moved along its trend of
+  // the last 8 weeks to race day. The trend is capped at 0.3% a week either way: predictions level
+  // off, and a straight line over months would promise too much.
+  {
+    if (!R) $('race').innerHTML = `<p class="cap">${G ? 'Pick the race distance to see a projection for race day.' : 'Set your race to see where you are heading on race day.'}</p>`;
+    else {
+      const P = D.pred.map(r => [t(r.d), r[R.pred]]).filter(p => num(p[1]));
+      const now = num(st[R.status]) ? st[R.status] : P.length ? P[P.length - 1][1] : null;
+      const raceT = G.date ? t(G.date) : null, daysOut = raceT === null ? null : Math.round((raceT - x1) / DAY);
+      const pts = P.filter(p => p[0] > x1 - 56 * DAY);
+      let slope = 0;
+      if (pts.length >= 3) {
+        const mx = pts.reduce((s, p) => s + p[0], 0) / pts.length, my = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        slope = pts.reduce((s, p) => s + (p[0] - mx) * (p[1] - my), 0) / (pts.reduce((s, p) => s + (p[0] - mx) ** 2, 0) || 1) * DAY;
+      }
+      const rpace = s => `${pace(s / 60 / R.km)} /km`;
+      if (!num(now)) $('race').innerHTML = `<p class="cap">No ${R.label} prediction from the watch yet.</p>`;
+      else {
+        const capS = now * 0.003 / 7; slope = Math.max(-capS, Math.min(capS, slope));
+        const proj = daysOut !== null && daysOut > 0 ? now + slope * daysOut : now;
+        const weeks = daysOut !== null ? daysOut / 7 : null;
+        const phase = daysOut === null ? 'No date set' : daysOut < 0 ? 'Race day has passed' : daysOut <= 7 ? 'Race week' : daysOut <= 14 ? 'Taper' : daysOut <= 28 ? 'Peak' : daysOut <= 84 ? 'Build' : 'Base';
+        let status = 'good', label = 'projection', verdict = `Heading for ${hms(proj)} on race day`, body;
+        const trendTxt = slope < -0.5 ? `improving about ${hms(Math.abs(slope) * 7)} a week` : slope > 0.5 ? `slipping about ${hms(slope * 7)} a week` : 'holding steady';
+        if (daysOut !== null && daysOut < 0) { status = 'warn'; label = 'past'; verdict = `${G.name} was ${fmtDate(G.date)}`; body = 'Set your next race to keep planning toward it.'; }
+        else if (G.targetS) {
+          const gap = proj - G.targetS, perWeek = weeks ? Math.max(0, now - G.targetS) / Math.max(weeks, 1) : null;
+          if (gap <= 0) { status = 'good'; label = 'on track'; body = `The projection beats your ${hms(G.targetS)} target by ${hms(-gap)}. Your prediction is ${trendTxt}; protect it with consistent weeks and a proper taper.`; }
+          else if (gap <= G.targetS * 0.02) { status = 'warn'; label = 'within reach'; body = `${hms(gap)} short of ${hms(G.targetS)}. You need about ${hms(perWeek)} a week of improvement; the prediction is ${trendTxt}. Threshold work and a steady long run close gaps like this.`; }
+          else { status = 'crit'; label = 'ambitious'; body = `${hms(gap)} short of ${hms(G.targetS)}: that needs ${hms(perWeek)} a week, more than predictions usually move. Consider ${hms(proj)} as the realistic goal, or a later race.`; }
+        } else body = `Your prediction is ${trendTxt}. Add a target time to see whether it is within reach.`;
+        const tile = (k, v, sub) => `<div class="tile"><span class="eyebrow">${k}</span><span class="v">${v}</span><span class="s">${sub}</span></div>`;
+        $('race').innerHTML = `<div class="card ${status}"><div class="head"><span class="eyebrow">${esc(G.name)}${G.date ? ` · ${fmtDate(G.date)} ${new Date(t(G.date)).getFullYear()}` : ''} · ${phase}${daysOut !== null && daysOut >= 0 ? ` · ${daysOut} days to go` : ''}</span><span class="pill ${status}">${label}</span></div><h3>${verdict}</h3>` +
+          `<div class="tiles">${tile('Predicted today', hms(now), rpace(now))}${tile('Projected race day', hms(proj), rpace(proj))}${G.targetS ? tile('Target', hms(G.targetS), rpace(G.targetS)) : ''}</div><p>${body}</p></div>`;
+      }
+    }
+  }
 
   // Half marathon prediction
   {

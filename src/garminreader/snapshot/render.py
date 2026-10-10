@@ -24,7 +24,7 @@ def _script_json(value: Any) -> str:
 def _fill(snapshot: dict[str, Any] | None, live: dict[str, Any] | None) -> str:
     package = resources.files("garminreader.snapshot")
     template = package.joinpath("page.html").read_text(encoding="utf-8")
-    script = "\n".join(package.joinpath(name).read_text(encoding="utf-8") for name in ("page.js", "live.js"))
+    script = "\n".join(package.joinpath(name).read_text(encoding="utf-8") for name in ("page.js", "goal.js", "live.js"))
     return (
         template.replace(DATA_MARKER, _script_json(snapshot))
         .replace(LIVE_MARKER, _script_json(live))

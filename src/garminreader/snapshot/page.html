@@ -40,6 +40,27 @@ section{display:grid;gap:16px}
 .pill{display:inline-block;font:500 .68rem var(--mono);letter-spacing:.06em;padding:1px 7px;border-radius:3px;text-transform:uppercase;width:max-content}
 .pill.good{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
 .pill.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 16%,transparent)}
+.review{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px;align-items:start}
+.review td b{font-weight:600}
+.notes-wrap{display:grid;gap:12px}
+.notes{border-left:3px solid var(--grid);padding:4px 0 4px 12px;display:grid;gap:4px}
+.notes.good{border-color:var(--good)}.notes.warn{border-color:var(--warn)}
+.notes ul{margin:0;padding-left:18px;color:var(--ink2);font-size:.9rem}
+.notes p{font-size:.9rem}
+.racebox{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:16px;align-items:start}
+.racebox .tiles{grid-template-columns:repeat(3,minmax(0,1fr))}
+.racebox .tile{padding:10px 12px}
+.racebox .tile .v{font-size:clamp(1.25rem,5vw,1.9rem)}
+.goalform{border:1px solid var(--grid);padding:14px 16px;display:grid;gap:10px}
+.goalform:empty{display:none}
+.goalform form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 12px;align-items:end}
+.goalform label{display:grid;gap:4px;font:500 .7rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.goalform input,.goalform select{font:.95rem var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--grid);border-radius:4px;padding:7px 9px;min-width:0;width:100%}
+.goalform input:focus-visible,.goalform select:focus-visible,.goalform button:focus-visible{outline:2px solid var(--c1);outline-offset:1px}
+.goalform .btns{display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}
+.goalform button{font:500 .88rem var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--grid);border-radius:4px;padding:7px 14px;cursor:pointer}
+.goalform button.primary{background:var(--c1);border-color:var(--c1);color:#fff}
+.goalform .msg{font-size:.85rem;color:var(--warn)}
 .pill.crit{color:var(--crit);background:color-mix(in srgb,var(--crit) 14%,transparent)}
 .coach{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
 .card{border:1px solid var(--grid);border-top:3px solid var(--grid);padding:14px 16px;display:grid;gap:8px;align-content:start;min-width:0}
@@ -120,12 +141,18 @@ footer{font-size:.8rem;color:var(--muted)}
 </section>
 
 <section>
+  <div class="sechead"><h2>Week in review</h2><span class="eyebrow">Last full week, Monday to Sunday</span></div>
+  <div class="review" id="review"></div>
+</section>
+
+<section>
   <div class="sechead"><h2>Coach's read</h2><span class="eyebrow">Recovery · training · planning</span></div>
   <div class="coach" id="coach"></div>
 </section>
 
 <section>
   <div class="sechead"><h2>Toward the goal</h2><span class="eyebrow" id="goaleb"></span></div>
+  <div class="racebox"><div id="race"></div><div id="goalform" class="goalform"></div></div>
   <div class="grid2">
     <div class="chart">
       <h3>Half marathon prediction</h3>
