@@ -1,0 +1,48 @@
+name: daily
+
+# The daily pipeline on real data: Garmin ingest into MotherDuck, dbt build,
+# checks. Runs `uv run pipeline` once, like the Dagster schedule would.
+# Needs the repository secrets MOTHERDUCK_TOKEN, GARMIN_EMAIL and GARMIN_PASSWORD.
+# Optional: GARMINTOKENS (the contents of .garmin_tokens/garmin_tokens.json); when
+# set, the run resumes that session instead of logging in with the password.
+
+on:
+  schedule:
+    # 04:00 UTC: 06:00 in Amsterdam in summer, 05:00 in winter.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      partition:
+        description: "Day to ingest (YYYY-MM-DD); empty for today"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    name: Ingest, transform and check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATA_PROFILE: prod
+      DATABASE: md:garmin
+      MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+      GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+      GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+      GARMINTOKENS: ${{ secrets.GARMINTOKENS }}
+      PARTITION: ${{ inputs.partition }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run doctor
+      - name: Pipeline
+        run: uv run pipeline ${PARTITION:+--partition "$PARTITION"}
