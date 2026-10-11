@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import Literal
 
 from dotenv import load_dotenv
 
@@ -10,28 +9,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-DataProfile = Literal["prod", "demo"]
 
-
-def data_profile() -> DataProfile:
-    """prod: your own Garmin data. demo: the synthetic athlete, safe to publish."""
-    profile = os.getenv("DATA_PROFILE", "prod")
-    if profile not in ("prod", "demo"):
-        raise RuntimeError(f"DATA_PROFILE must be prod or demo, not {profile!r}")
-    return "demo" if profile == "demo" else "prod"
-
-
-def is_demo() -> bool:
-    return data_profile() == "demo"
-
-
-def _profile_setting(key: str, default: str) -> str:
-    """A data location for the active profile. The demo reads DEMO_<key> and never
-    the prod key: the demo is rebuilt from scratch, so a prod setting must never be
-    able to point it at real data. Relative paths resolve against the project root;
-    URLs (scheme://) and MotherDuck databases (md:<name>) are kept as is."""
-    demo = is_demo()
-    value = os.getenv(f"DEMO_{key}" if demo else key) or f"data/{'demo/' if demo else ''}{default}"
+def _data_setting(key: str, default: str) -> str:
+    """A data location. Relative paths resolve against the project root; URLs (scheme://) and
+    MotherDuck databases (md:<name>) are kept as is."""
+    value = os.getenv(key) or f"data/{default}"
     if "://" in value or is_motherduck(value):
         return value
     return str(PROJECT_ROOT / value)
@@ -40,7 +22,7 @@ def _profile_setting(key: str, default: str) -> str:
 def database() -> str:
     """The DuckDB database holding everything: raw payloads, staging and marts.
     A local file, or a MotherDuck database as md:<name> (token in MOTHERDUCK_TOKEN)."""
-    return _profile_setting("DATABASE", "warehouse.duckdb")
+    return _data_setting("DATABASE", "warehouse.duckdb")
 
 
 def is_motherduck(database: str) -> bool:
@@ -49,7 +31,7 @@ def is_motherduck(database: str) -> bool:
 
 def goal_path() -> str:
     """Where the training goal is saved: a local path or an fsspec URL."""
-    return _profile_setting("GOAL_PATH", "goal.json")
+    return _data_setting("GOAL_PATH", "goal.json")
 
 
 def history_start() -> str:

@@ -29,7 +29,6 @@ def warehouse(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     """A local warehouse with one activity a day for the 10 days up to TODAY (ids 0 to 9, 0 the newest)."""
     path = str(tmp_path / "w.duckdb")
     monkeypatch.setenv("DATABASE", path)
-    monkeypatch.setenv("DATA_PROFILE", "prod")
     monkeypatch.setenv("GOAL_PATH", str(tmp_path / "goal.json"))
     with duckdb.connect(path) as con:
         con.execute("create schema marts")

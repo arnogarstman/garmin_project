@@ -51,7 +51,6 @@ const path = (pts, X, Y) => pts.filter(p => num(p[1])).map((p, i) => (i ? 'L' : 
 const endDot = (p, X, Y, c, label, dy = -8) => `<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="${c}"/><text x="${X(p[0]) - 6}" y="${Y(p[1]) + dy}" text-anchor="end" style="fill:${c};font-weight:500">${label}</text>`;
 const lastValid = pts => [...pts].reverse().find(p => num(p[1]));
 
-const INTRO = document.getElementById('intro').textContent;
 
 // Race distances: label, km, the prediction column in D.pred, the field in D.status, and the long run
 // a coach wants covered before race day.
@@ -89,13 +88,8 @@ function renderPage(D) {
   lastD = D;
   const G = raceGoal(D), R = G && RACES[G.distance];
   // Header
-  const demo = D.profile === 'demo';
   $('built').textContent = new Date(D.built_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  $('profile').textContent = demo ? 'Synthetic demo athlete' : 'Live Garmin data';
-  $('intro').textContent = INTRO + (demo ? ' The numbers below come from the synthetic athlete, rendered as real Garmin API responses and run through the unchanged pipeline.' : '');
-  $('footer').textContent = demo
-    ? 'Synthetic data only; no personal Garmin data is included.'
-    : 'Personal Garmin data. Snapshot of the marts at build time; refreshed by the daily run.';
+  $('footer').textContent = 'Personal Garmin data. Snapshot of the marts at build time; refreshed by the daily run.';
 
   const days = D.daily, st = D.status || {};
   const x1 = days.length ? t(days[days.length - 1].d) : Date.now(), x0 = days.length ? t(days[0].d) : x1 - 365 * DAY;

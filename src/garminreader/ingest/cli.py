@@ -9,7 +9,6 @@ import argparse
 import logging
 from datetime import date, timedelta
 
-from garminreader import config
 from garminreader.ingest import storage
 from garminreader.ingest.sources import SOURCES
 
@@ -25,10 +24,6 @@ def main() -> None:
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-
-    if config.is_demo():
-        # The demo warehouse is meant to be published; real data must never land in it.
-        parser.error("DATA_PROFILE=demo holds synthetic data only; use `uv run synthesize` instead")
 
     source = SOURCES[args.source]()
     since: date | None = args.since

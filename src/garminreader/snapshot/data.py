@@ -11,7 +11,7 @@ from typing import Any
 
 import duckdb
 
-from garminreader import config, db
+from garminreader import db
 from garminreader.goal import load_goal
 
 Row = dict[str, Any]
@@ -130,9 +130,9 @@ def load(days: int = 365) -> dict[str, Any]:
 
 
 def context() -> dict[str, Any]:
-    """What the page shows besides the marts: the training goal and the data profile."""
+    """What the page shows besides the marts: the training goal from the goal file."""
     goal = load_goal()
-    return {"goal": goal.model_dump(mode="json") if goal else None, "profile": config.data_profile()}
+    return {"goal": goal.model_dump(mode="json") if goal else None}
 
 
 def live_queries(days: int = 365) -> dict[str, str]:
