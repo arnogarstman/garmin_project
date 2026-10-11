@@ -68,7 +68,7 @@ function parseTarget(text, distance) {
   if (m[3] !== undefined) return +m[1] * 3600 + +m[2] * 60 + +m[3];
   return distance === 'half' || distance === 'marathon' ? +m[1] * 3600 + +m[2] * 60 : +m[1] * 60 + +m[2];
 }
-// The race goal saved on the page (goal.js), else the dashboard's goal file embedded at build time.
+// The race goal saved on the page (goal.js), else the goal file embedded at build time.
 let pageGoal = null;
 function raceGoal(D) {
   const g = pageGoal;
@@ -169,7 +169,7 @@ function renderPage(D) {
       }
     }
 
-    // Plan adherence over the last 4 weeks (today excluded): this page's logged sessions against the
+    // Plan adherence over the last 4 weeks (today excluded): Claude's plan's logged sessions against the
     // runs (adherence.js), with Garmin Coach's own done and missed beside them.
     {
       const today = iso(new Date(x1)), start = iso(new Date(thisWeek - 28 * DAY)), logStart = planlogStart();
@@ -462,7 +462,7 @@ function renderPage(D) {
         if (dr !== null && dr <= -10) change.push(`Readiness averaged ${a.ready.toFixed(0)}, ${Math.abs(dr).toFixed(0)} points below the week before: keep next week's hard sessions short.`);
         if (num(a.sleep) && num(b.sleep) && a.sleep < b.sleep - 4) change.push(`Sleep score fell from ${b.sleep.toFixed(0)} to ${a.sleep.toFixed(0)}.`);
         else if (num(a.sleep) && a.sleep >= 80) well.push(`Sleep averaged ${a.sleep.toFixed(0)}.`);
-        // Against the plan: this page's logged sessions and Garmin Coach's workouts, per week.
+        // Against the plan: Claude's plan's logged sessions and Garmin Coach's workouts, per week.
         const pa = adherence(runs, D.coach, iso(new Date(w1)), iso(new Date(thisWeek))), pb = adherence(runs, D.coach, iso(new Date(w0)), iso(new Date(w1)));
         if (pa.n >= 2) {
           const gone = pa.sessions.filter(x => x.key && !x.hit);
@@ -494,7 +494,7 @@ function renderPage(D) {
     }
   }
 
-  // Goal: the race set on the page (or the dashboard's goal file). A half marathon target also
+  // Goal: the race set on the page (or the goal file). A half marathon target also
   // becomes a reference line on the prediction chart.
   const targetS = G && G.targetS ? G.targetS : null;
   $('goaleb').textContent = G
@@ -635,7 +635,7 @@ function renderPage(D) {
     else {
       const f = frame({ x0, x1, yTicks: niceTicks(0, Math.max(...v), 4), fmtY: x => x, H: 180 });
       $('ch-load').innerHTML = f.s + eventMarks(f, chartEvents(D, x0, x1)) + `<path d="${path(C, f.X, f.Y)}" fill="none" stroke="${css('c2')}" stroke-width="2.2"/><path d="${path(A, f.X, f.Y)}" fill="none" stroke="${css('c5')}" stroke-width="1.4"/></svg>`;
-      $('cap-load').textContent = num(st.acwr) ? `Acute to chronic ratio is ${st.acwr.toFixed(1)} today (${lower(st.acwr_status)}). Above 1.5 the dashboard flags injury risk.` : '';
+      $('cap-load').textContent = num(st.acwr) ? `Acute to chronic ratio is ${st.acwr.toFixed(1)} today (${lower(st.acwr_status)}). Above 1.5 the injury risk goes up.` : '';
     }
   }
 

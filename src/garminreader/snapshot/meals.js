@@ -1,6 +1,6 @@
 // Meal plan: day by day toward a weight goal. The page works out each day's energy and macro targets
 // itself, from Garmin's measured daily burn (marts.fct_daily_energy), the weight trend, today's
-// workouts and the training plan's sessions for the coming week; Claude (the `sample` capability)
+// workouts and the training plan's sessions for the coming week, gym days included (gym.js); Claude (the `sample` capability)
 // only turns those targets into meals. The goal (settings/weight) and the last plan
 // (settings/mealplan) live in the artifact's database like the race goal, so a plan is made on
 // request and kept, never regenerated on a visit. Estimates for a healthy adult, not medical advice.
@@ -61,8 +61,10 @@ function mealBudget(D, goal) {
     if (rate > maxGain) { rate = maxGain; capped = true; }
   }
   const delta = rate * KCAL_PER_KG / 7;
-  const protein = weight * (rate < 0 ? 1.8 : 1.6), [fatMin, fatMax] = FAT_G_PER_KG.map(f => f * weight);
+  const baseProtein = weight * (rate < 0 ? 1.8 : 1.6), [fatMin, fatMax] = FAT_G_PER_KG.map(f => f * weight);
   const todayRow = rows.find(r => r.d.slice(0, 10) === today);
+  // Garmin counts a gym session in today's burn only when the watch recorded it.
+  const gymRecorded = (D.history || []).some(r => String(r.activity_date).slice(0, 10) === today && /strength|fitness_equipment/i.test(r.type || ''));
 
   let sessions = upcomingSessions(PLAN_DAYS);
   if (!sessions.length) sessions = Array.from({ length: PLAN_DAYS }, (_, k) => { const n = new Date(); return { date: iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() + k)), kind: 'rest', title: 'No plan', km: 0 }; });
@@ -70,16 +72,19 @@ function mealBudget(D, goal) {
   const days = sessions.map(s => {
     // Today, once trained, counts what was done instead of what was planned.
     const done = s.date === today && todayRow?.workouts > 0;
-    const extra = done ? (todayRow.workout_kcal || 0) : s.km * weight * RUN_KCAL_PER_KG_KM;
+    const gymKcal = s.gym && !(done && gymRecorded) ? weight * GYM_KCAL_PER_KG[s.gym] : 0;
+    const extra = (done ? (todayRow.workout_kcal || 0) : s.km * weight * RUN_KCAL_PER_KG_KM) + gymKcal;
     const burn = restBurn + extra;
+    const protein = s.gym ? Math.max(baseProtein, weight * GYM_PROTEIN_PER_KG) : baseProtein;
     let kcal = burn + delta;
     const floor = Math.max(MIN_KCAL, burn * (1 - MAX_DEFICIT_SHARE));
     if (kcal < floor) { kcal = floor; floored = true; }
-    let carbs = weight * (done ? carbsPerKg('easy', todayRow.run_km || 8) : carbsPerKg(s.kind, s.km));
+    let carbs = weight * ((done ? carbsPerKg('easy', todayRow.run_km || 8) : carbsPerKg(s.kind, s.km)) + (s.gym ? GYM_CARBS_PER_KG[s.gym] : 0));
     const fat = Math.min(fatMax, Math.max(fatMin, (kcal - protein * 4 - carbs * 4) / 9));
     carbs = Math.max(weight * 2, (kcal - protein * 4 - fat * 9) / 4);
-    const title = done ? `Done: ${todayRow.workouts} workout${todayRow.workouts > 1 ? 's' : ''}` : s.title + (s.km && s.kind !== 'race' ? ` ${Math.round(s.km)} km` : '');
-    return { date: s.date, kind: done ? 'done' : s.kind, title, burn: round10(burn), kcal: round10(protein * 4 + carbs * 4 + fat * 9), protein: Math.round(protein), carbs: Math.round(carbs), fat: Math.round(fat) };
+    const run = done ? `Done: ${todayRow.workouts} workout${todayRow.workouts > 1 ? 's' : ''}` : s.kind === 'rest' && s.gym ? '' : s.title + (s.km && s.kind !== 'race' ? ` ${Math.round(s.km)} km` : '');
+    const title = [run, s.gym && GYM_KINDS[s.gym].label].filter(Boolean).join(' + ');
+    return { date: s.date, kind: done ? 'done' : s.kind, gym: s.gym || null, title, burn: round10(burn), kcal: round10(protein * 4 + carbs * 4 + fat * 9), protein: Math.round(protein), carbs: Math.round(carbs), fat: Math.round(fat) };
   });
   return { weight, trend, restBurn, rate, capped, floored, weeks, diff, days, eta: diff && rate ? Math.abs(diff / rate) : null };
 }
@@ -108,7 +113,7 @@ function renderMeals(D) {
   if (b.floored) notes.push(`Some days stop at ${kcalFmt(MIN_KCAL)} kcal or ${MAX_DEFICIT_SHARE * 100}% below that day's burn, whichever is higher, so training stays fuelled.`);
   $('mealbudget').innerHTML = `<div class="tbl"><table><thead><tr><th>Day</th><th>Training</th><th class="n">Burn</th><th class="n">Eat</th><th class="n">Protein</th><th class="n">Carbs</th><th class="n">Fat</th></tr></thead><tbody>${
     b.days.map(d => `<tr><td>${dayName(d.date)} ${fmtDate(d.date)}</td><td>${esc(d.title)}</td><td class="n">${kcalFmt(d.burn)}</td><td class="n"><b>${kcalFmt(d.kcal)}</b></td><td class="n">${d.protein} g</td><td class="n">${d.carbs} g</td><td class="n">${d.fat} g</td></tr>`).join('')
-  }</tbody></table></div><p class="cap">Burn is your rest-day burn plus about ${RUN_KCAL_PER_KG_KM} kcal per kg per km for planned runs (today: what you did, once you trained). ${notes.join(' ')} Estimates for a healthy adult, not medical advice.</p>`;
+  }</tbody></table></div><p class="cap">Burn is your rest-day burn plus about ${RUN_KCAL_PER_KG_KM} kcal per kg per km for planned runs and ${GYM_KCAL_PER_KG.chest}–${GYM_KCAL_PER_KG.legs} kcal per kg for an hour in the gym, legs the most (today: what you did, once you trained). Gym days get ${GYM_PROTEIN_PER_KG} g protein per kg and more carbohydrate. ${notes.join(' ')} Estimates for a healthy adult, not medical advice.</p>`;
   $('mealplan').innerHTML = mealPlanHtml();
   bindMealButtons();
 }
@@ -119,7 +124,9 @@ function mealPlanHtml() {
   const can = meals.sample && meals.canWrite && b;
   if (meals.busy) return `<p class="livestate" role="status">${esc(meals.busy)}</p><button type="button" class="livebtn" id="meal-stop">Stop</button>`;
   const p = mealPlan, days = (p?.plan?.days || []).filter(d => typeof d?.date === 'string' && d.date >= today);
-  const stale = p && (!days.length || (weightGoal?.updated_at && weightGoal.updated_at > p.generated_at));
+  // Out of date when the goal changed since, or a coming day's gym session did.
+  const trainingChanged = b && (p?.basis || []).some(d => { const now = b.days.find(x => x.date === d.date); return now && d.date > today && (now.gym || null) !== (d.gym || null); });
+  const stale = p && (!days.length || (weightGoal?.updated_at && weightGoal.updated_at > p.generated_at) || trainingChanged);
   const err = meals.error ? `<p class="mmsg">${esc(meals.error)}</p>` : '';
   const button = can ? `<button type="button" class="livebtn" id="meal-make">${p ? 'Make a new plan' : 'Make the meal plan'}</button>` : '';
   if (!p) return `${err}<p class="cap">${can ? 'Claude writes meals for the targets above, around your training and diet. It takes about a minute.' : meals.sample === null ? 'Open the page on claude.ai to have Claude write the meals.' : 'No meal plan yet.'}</p>${button}`;
@@ -156,7 +163,7 @@ function mealPlanHtml() {
   const week = days.length ? `<div class="mweek"><h3>${days.length === 1 ? 'Total' : `Total over ${days.length} days`}</h3>${totalsTable([[`${days.length} day${days.length === 1 ? '' : 's'}`, weekTot, weekTg], ['Per day', Object.fromEntries(MACROS.map(([k]) => [k, weekTot[k] / days.length])), weekTg && Object.fromEntries(Object.entries(weekTg).map(([k, v]) => [k, v / days.length]))]], 'Eaten / target')}</div>` : '';
   const shop = Array.isArray(p.plan.shopping_list) && p.plan.shopping_list.length ? `<details class="mshop"><summary>Shopping list</summary><ul>${p.plan.shopping_list.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '';
   const tips = Array.isArray(p.plan.tips) && p.plan.tips.length ? `<div class="notes"><h3>Tips</h3><ul>${p.plan.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
-  const head = `<p class="cap">Made ${fmtDate(p.generated_at)} at ${new Date(p.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${stale ? `. <span class="pill warn">out of date</span> ${days.length ? 'the goal changed since' : 'its days are over'}; make a new plan for the targets above.` : '.'}</p>`;
+  const head = `<p class="cap">Made ${fmtDate(p.generated_at)} at ${new Date(p.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${stale ? `. <span class="pill warn">out of date</span> ${!days.length ? 'its days are over' : trainingChanged ? 'your gym days changed since' : 'the goal changed since'}; make a new plan for the targets above.` : '.'}</p>`;
   return `${err}${head}${button}${week}${days.length ? `<div class="mdays">${cards}</div>` : ''}${shop}${tips}`;
 }
 
@@ -169,7 +176,7 @@ function bindMealButtons() {
 function mealPrompt(b, g) {
   const days = b.days.map(d => `- ${d.date} ${dayName(d.date)}: ${d.title} · ${d.kcal} kcal · protein ${d.protein} g · carbohydrate ${d.carbs} g · fat ${d.fat} g`).join('\n');
   const goal = g ? `goal ${g.target_kg} kg${g.target_date ? ` by ${g.target_date}` : ''}, planned pace ${b.rate.toFixed(2)} kg per week` : 'no weight goal (maintenance)';
-  return `You are a sports dietitian writing a ${b.days.length}-day meal plan for an endurance athlete.
+  return `You are a sports dietitian writing a ${b.days.length}-day meal plan for an endurance athlete who also does strength training.
 
 Each day's targets below are already worked out from the athlete's Garmin data: their measured daily burn, the training planned for that day and their weight goal. Do not recompute them. Build meals that reach each day's calories within 5% and at least its protein, with carbohydrate and fat close to their targets.
 
@@ -184,6 +191,7 @@ ${days}
 Guidance:${g?.staples ? `
 - Build the meals around the foods the athlete eats a lot, where they fit the day's targets, and vary how they are used across the week. Count them as at home: the shopping list holds only what the plan needs beyond them.` : ''}
 - Time carbohydrate around training: a carbohydrate-rich meal two to three hours before long or hard sessions, and protein with carbohydrate within an hour after.
+- Chest, back and leg days are gym sessions of about an hour: put 25 to 40 g of protein in the meal or snack after them.
 - Simple dishes from ingredients in an ordinary supermarket. Repeat breakfasts and reuse leftovers so shopping stays short.
 - Portions in grams or household measures.
 - No medical advice and no supplements beyond ordinary food.

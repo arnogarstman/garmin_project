@@ -1,8 +1,8 @@
 """Reads the marts into the JSON-ready payload the snapshot page renders.
 
-Reads marts only, like the dashboard. Aggregation for display (weekly sums,
-weekly samples of predictions) happens here; modelling stays in dbt. The same
-queries feed the live page, which runs each one through a connector.
+Reads marts only. Aggregation for display (weekly sums, weekly samples of
+predictions) happens here; modelling stays in dbt. The same queries feed the
+live page, which runs each one through a connector.
 """
 
 import datetime as dt

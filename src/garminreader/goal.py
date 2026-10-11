@@ -1,6 +1,6 @@
-"""The athlete's training goal: what they enter in the dashboard, persisted as
-JSON at `config.goal_path()` (a local file, or object storage in the cloud) so it survives restarts. It is user input,
-not warehouse data, and is shared by the dashboard and the dashboard page."""
+"""The athlete's training goal as a JSON file at `config.goal_path()` (a local file, or object
+storage in the cloud). It is user input, not warehouse data: the workout reviews read it, and the
+dashboard page embeds it when no race is saved on the page itself."""
 
 import logging
 from datetime import date
@@ -14,8 +14,6 @@ from garminreader import config
 logger = logging.getLogger(__name__)
 
 DEFAULT_HORIZON_WEEKS = 12
-
-EXPERIENCE_LEVELS = ["Beginner", "Intermediate", "Advanced"]
 
 
 class TrainingGoal(BaseModel):
@@ -60,10 +58,3 @@ def load_goal(location: str | Path | None = None) -> TrainingGoal | None:
     except ValidationError:
         logger.warning("Ignoring unreadable goal file %s", path)
         return None
-
-
-def save_goal(goal: TrainingGoal, location: str | Path | None = None) -> None:
-    fs, path = fsspec.core.url_to_fs(str(location or config.goal_path()))
-    fs.makedirs(path.rsplit("/", 1)[0], exist_ok=True)
-    with fs.open(path, "w") as f:
-        f.write(goal.model_dump_json(indent=2))

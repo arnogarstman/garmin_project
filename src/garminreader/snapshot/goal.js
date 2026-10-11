@@ -1,7 +1,7 @@
 // The race goal form. The race lives in the artifact's own database (the `db` capability, document
 // settings/race), so it survives reloads and new versions of the page; every change re-renders the
 // page through rerender(). Without the capability (a local snapshot file) the form stays hidden and
-// the dashboard's goal file, if any, is used.
+// the goal file (GOAL_PATH), if any, is used.
 const GOAL_DOC = 'settings/race';
 
 async function startGoal() {
