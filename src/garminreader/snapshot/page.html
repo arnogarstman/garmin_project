@@ -30,7 +30,8 @@ p{margin:0;max-width:66ch;color:var(--ink2)}
 header{display:grid;gap:12px}
 .demo{display:inline-flex;gap:8px;align-items:center;font:500 .75rem var(--mono);color:var(--ink2);border:1px solid var(--grid);border-radius:999px;padding:3px 10px;width:max-content;max-width:100%}
 .demo i{width:8px;height:8px;border-radius:50%;background:var(--c3);display:block}
-section{display:grid;gap:16px}
+section{display:grid;gap:16px;min-width:0}
+section>*{min-width:0}
 .sechead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;border-bottom:1px solid var(--grid);padding-bottom:8px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--grid);border:1px solid var(--grid)}
 .tile{background:var(--bg);padding:14px 16px;display:grid;gap:2px;align-content:start}
@@ -117,17 +118,31 @@ section{display:grid;gap:16px}
 #mealstats .tile .v{font-size:1.6rem}
 #mealbudget{display:grid;gap:8px}
 .mealplan{display:grid;gap:12px;justify-items:start}
+.mealplan,.mealplan>*,#mealbudget,#mealbudget>*{min-width:0}
 .mealplan>*{justify-self:stretch}
 .mealplan>.livebtn{justify-self:start}
 .mmsg{font-size:.88rem;color:var(--warn)}
 .mdays{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
 .mday{border:1px solid var(--grid);border-top:3px solid var(--c2);padding:12px 14px;display:grid;gap:8px;align-content:start;min-width:0}
 .mday .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 8px}
-.mday .tot{font:500 .78rem var(--mono);color:var(--ink2)}
+.mday .macros{display:flex;flex-wrap:wrap;gap:2px 10px;font:500 .72rem var(--mono);color:var(--ink2)}
+.mdtot{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--grid);border:1px solid var(--grid);margin-top:-4px}
+.mdtot div{background:var(--bg);padding:6px 8px;display:grid;min-width:0}
+.mdtot b{font:600 .95rem var(--display);font-variant-numeric:tabular-nums}
+.mdtot i{font:normal .72rem var(--mono);color:var(--muted)}
+.mday .head{min-width:0}
+.mday .head .eyebrow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.mtot{font-size:.8rem}
+.mtot th,.mtot td{padding:4px 6px}
+.mtot th:first-child,.mtot td:first-child{padding-left:0}
+.mtot td i{font-style:normal;color:var(--muted)}
+.mtot td b{font-weight:600}
+.mweek{border:1px solid var(--grid);padding:12px 14px;display:grid;gap:6px;overflow-x:auto}
+.mweek .mtot{font-size:.88rem}
 .mday ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
 .mday li{display:grid;gap:1px;font-size:.9rem}
 .mday li b{font-weight:600}
-.mday li span:last-child{color:var(--ink2);font-size:.84rem}
+.mday li .portion{color:var(--ink2);font-size:.84rem}
 .mday p{font-size:.86rem}
 .mshop{border:1px solid var(--grid);padding:10px 14px}
 .mshop summary{cursor:pointer;font:600 1rem var(--display)}
