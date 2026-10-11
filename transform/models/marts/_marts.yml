@@ -23,6 +23,14 @@ models:
       - name: activity_date
         data_tests: [not_null]
 
+  - name: fct_workout_reviews
+    description: >
+      Claude's review of a workout (see the coach source), with the activity it reviews.
+      One row per reviewed activity; went_well and watch_out are lists.
+    columns:
+      - name: activity_id
+        data_tests: [unique, not_null]
+
   - name: fct_race_results
     description: >
       Half marathon and marathon results with progression per distance: previous time,

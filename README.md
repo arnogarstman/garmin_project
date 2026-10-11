@@ -23,19 +23,22 @@ flowchart LR
         R[(raw.payloads<br/>bronze)] -->|dbt| ST[Staging<br/>silver]
         ST --> M[Marts<br/>gold]
     end
+    M -->|coach source| C[Claude API]
+    C -->|workout reviews| R
     M --> D[Streamlit dashboard]
     M --> P[Snapshot page]
-    D -->|AI insights| C[Claude API]
+    D -->|AI insights| C
+    W[Strava webhook] -.starts a refresh.-> O
     O{{Dagster}} -.orchestrates.-> R & ST & M
 ```
 
 | Layer | What it is |
 |---|---|
-| **Ingest** | One pluggable `Source` per system. The Garmin source makes one record per API call and keeps the payload untouched. A source only fetches data; it never transforms it. |
+| **Ingest** | One pluggable `Source` per system. The Garmin source makes one record per API call and keeps the payload untouched. The coach source asks Claude to review each new workout against the training and recovery before it, and stores the answer the same way. A source only fetches data; it never transforms it. |
 | **Bronze** | Append-only `raw.payloads` table (payload and params as JSON, plus load metadata) and a `raw.loads` run log, in the same database as the models. A record is only stored when it is new or changed; a load and its run-log row commit in one transaction. Every model can be rebuilt from this table. |
 | **Silver, gold** | dbt on DuckDB. Staging keeps the newest version per day. Marts cover daily health, activities, body composition, race results with personal bests, and Garmin's race predictions. Every model has data tests, plus a dbt unit test for race detection. |
 | **Orchestration** | Dagster: raw ingest as daily partitions (backfill or rerun any day), each dbt model as an asset with its tests as checks, and freshness checks. |
-| **Serving** | Streamlit, reading marts only. It covers overview, activities, a running calendar, recovery, body, races, rule-based insights, and AI coaching through the Claude API: a goal-based coach, trend reads and an explanation of the race predictions. `uv run snapshot` renders the marts as one self-contained HTML page for static hosting. |
+| **Serving** | Streamlit, reading marts only. It covers overview, activities, a running calendar, recovery, body, races, rule-based insights, and AI coaching through the Claude API: a goal-based coach, trend reads and an explanation of the race predictions. `uv run snapshot` renders the marts as one self-contained HTML page for static hosting, with the latest workout review on top. |
 
 ## Engineering choices worth a look
 
@@ -92,6 +95,47 @@ When the run fails with "No working Garmin session": run the two `garmin-tokens`
 
 If Garmin starts refusing GitHub's IP addresses, run the same workflow on a machine at home: [add a self-hosted runner](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners) (it needs uv and the GitHub CLI) and set the repository variable `REFRESH_RUNNER` to `self-hosted`. GitHub keeps scheduling, logging and alerting; only the Garmin calls come from your own connection.
 
+### Refresh after a workout
+
+Garmin has no webhooks for personal accounts, but Strava does, and a Garmin watch can sync every activity to Strava. A small Cloudflare Worker ([`webhook/strava.js`](webhook/strava.js)) receives Strava's "new activity" event and starts the refresh workflow through `workflow_dispatch`. The run ingests the workout from Garmin as usual, then the coach source asks Claude to review it, and the review lands in `marts.fct_workout_reviews` and on the page a few minutes after the watch syncs. The morning run reviews whatever a webhook missed: every workout of the last 7 days without a review, at most 5 per run.
+
+Strava only provides the trigger; all data still comes from Garmin.
+
+One-time setup:
+
+1. **Anthropic key.** Add `ANTHROPIC_API_KEY` as a repository secret. Without it, runs skip the reviews.
+2. **Strava API app.** In Garmin Connect, connect Strava under *Settings > Connected Apps* so every workout reaches Strava. Create an app at [strava.com/settings/api](https://www.strava.com/settings/api) (any name and website; *Authorization Callback Domain* `localhost`) and note its client id and secret. Strava only sends events about athletes who authorized the app, so authorize it once yourself: open `https://www.strava.com/oauth/authorize?client_id=<id>&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=activity:read_all`, approve, copy the `code` from the address of the page that fails to load, and exchange it:
+
+   ```sh
+   curl -sS -X POST https://www.strava.com/oauth/token -F client_id=... -F client_secret=... \
+     -F code=... -F grant_type=authorization_code | python3 -c "import json,sys; print(json.load(sys.stdin)['athlete']['id'])"
+   ```
+
+   That prints your athlete id. The tokens themselves are not needed: the webhook carries the activity id, and the data comes from Garmin.
+3. **GitHub token for the Worker.** A [fine-grained personal access token](https://github.com/settings/personal-access-tokens) for this repository only, with *Actions: Read and write*. That lets it start workflows and nothing else.
+4. **Deploy the Worker** (needs a free Cloudflare account; `wrangler` asks you to log in):
+
+   ```sh
+   cd webhook
+   npx wrangler deploy                                # prints https://garminreader-strava.<you>.workers.dev
+   openssl rand -hex 16                               # a verify token, used below and in step 5
+   npx wrangler secret put STRAVA_VERIFY_TOKEN
+   npx wrangler secret put STRAVA_ATHLETE_ID
+   npx wrangler secret put GITHUB_TOKEN
+   ```
+
+5. **Subscribe to Strava's events**, which also checks that the Worker answers:
+
+   ```sh
+   STRAVA_CLIENT_ID=... STRAVA_CLIENT_SECRET=... STRAVA_VERIFY_TOKEN=... \
+     ./subscribe.sh https://garminreader-strava.<you>.workers.dev/strava   # prints {"id": 123456}
+   npx wrangler secret put STRAVA_SUBSCRIPTION_ID                          # that id
+   ```
+
+Strava does not sign its events, so the Worker only accepts events that name your athlete id and your subscription id. A forged event can at most start one extra run, which finds nothing new. `npx wrangler tail` shows the Worker's log; the refresh runs it starts are named after the Strava activity in the Actions tab.
+
+To review workouts by hand, for example after changing the prompt in [`review.py`](src/garminreader/ingest/sources/coach/review.py): `uv run ingest coach [--since YYYY-MM-DD]`, then `uv run transform`.
+
 ## Quality
 
 ```sh
@@ -105,15 +149,17 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pyt
 
 ```
 src/garminreader/
-  ingest/          sources (Garmin), the raw store, the ingest CLI
+  ingest/          sources (Garmin, coach), the raw store, the ingest CLI
   synthetic/       the simulated athlete and its Garmin-shaped payloads
   orchestration/   Dagster assets, checks, schedule, the pipeline CLI
   dashboard/       Streamlit app; queries.py is its only database access
   snapshot/        static HTML page of the marts
+  claude.py        the one Claude API client (workout reviews, dashboard coach)
   config.py        every setting, from .env
   db.py            connections to the local file or MotherDuck
 transform/         dbt project: staging/ and marts/
-.github/workflows/ CI
+webhook/           Strava webhook receiver (Cloudflare Worker) that starts a refresh
+.github/workflows/ CI and the refresh
 ```
 
 ## Stack

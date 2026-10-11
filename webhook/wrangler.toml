@@ -1,0 +1,13 @@
+# Strava webhook receiver; deploy with `npx wrangler deploy` from this directory.
+# Secrets (STRAVA_VERIFY_TOKEN, STRAVA_ATHLETE_ID, STRAVA_SUBSCRIPTION_ID, GITHUB_TOKEN) are set
+# with `npx wrangler secret put <NAME>` and never stored here.
+name = "garminreader-strava"
+main = "strava.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+GITHUB_REPO = "arnogarstman/garmin_project"
+WORKFLOW = "refresh.yml"
+
+[observability]
+enabled = true

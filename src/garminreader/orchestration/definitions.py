@@ -34,7 +34,7 @@ schedule = (
 )
 
 defs = dg.Definitions(
-    assets=[raw_asset, assets.dbt_models],
+    assets=[raw_asset, assets.workout_reviews, assets.dbt_models],
     asset_checks=[checks.raw_is_fresh, checks.garmin_signals_are_fresh],
     jobs=[daily_refresh],
     schedules=[schedule],

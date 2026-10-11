@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: coach
+    description: >
+      Workout reviews by Claude, landed by the coach source in the shared raw.payloads table:
+      one record per reviewed activity, the answer untouched.
+    schema: raw
+    tables:
+      - name: payloads
+        config:
+          meta:
+            dagster:
+              asset_key: [raw, coach]  # written by the workout review step in Dagster

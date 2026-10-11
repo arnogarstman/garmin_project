@@ -10,9 +10,10 @@ DATA_MARKER = "/*SNAPSHOT*/null"
 LIVE_MARKER = "/*LIVE*/null"
 APP_MARKER = "/*APP*/"
 
-# The page scripts, in load order: page.js renders, plan.js and goal.js add the training plan and
-# race form, live.js boots the page (live through a connector, or from the embedded snapshot).
-SCRIPTS = ("page.js", "plan.js", "goal.js", "live.js")
+# The page scripts, in load order: page.js renders, review.js adds the workout reviews, plan.js and
+# goal.js the training plan and race form, live.js boots the page (live through a connector, or
+# from the embedded snapshot).
+SCRIPTS = ("page.js", "review.js", "plan.js", "goal.js", "live.js")
 
 # The claude.ai connector and tool a live page queries through; declare them in the
 # artifact's `mcp` capability when publishing.

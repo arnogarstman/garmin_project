@@ -19,6 +19,8 @@ sources:
             data_tests:
               - not_null
               - accepted_values:
+                  config:
+                    where: "source = 'garmin'"  # the table is shared by every source
                   arguments:
                     values:
                       - daily_summary

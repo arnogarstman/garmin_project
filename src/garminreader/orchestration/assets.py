@@ -1,5 +1,5 @@
-"""The pipeline's assets: raw Garmin data (bronze) and the dbt models (silver and
-gold), all in the configured database.
+"""The pipeline's assets: raw Garmin data (bronze), the dbt models (silver and
+gold) and Claude's workout reviews, all in the configured database.
 
 With real data, raw is partitioned by day, so a backfill is "materialize these
 partitions" and a failed day can be re-run on its own. Each partition fetches
@@ -17,12 +17,14 @@ from dagster_dbt import DbtCliResource, DbtProject, dbt_assets
 from dbt.cli.main import dbtRunner
 
 from garminreader import config
+from garminreader.ingest.sources.coach.source import CoachSource
 from garminreader.ingest.sources.garmin.source import GarminSource
 from garminreader.ingest.storage import RawStore
 from garminreader.transform import configure_dbt_env
 
 RAW_KEY = dg.AssetKey(["raw", "garmin"])
 LOADS_KEY = dg.AssetKey(["raw", "garmin_loads"])
+COACH_KEY = dg.AssetKey(["raw", "coach"])
 TIMEZONE = "Europe/Amsterdam"
 
 daily = dg.DailyPartitionsDefinition(start_date=config.history_start(), end_offset=1, timezone=TIMEZONE)
@@ -62,6 +64,20 @@ def synthetic_raw() -> Iterator[dg.MaterializeResult[None]]:
 
     days, activities = build(end=date.today())
     yield from _results({"days": days, "activities": activities})
+
+
+@dg.asset(
+    key=COACH_KEY,
+    group_name="coach",
+    kinds={"python", "json"},
+    # The marts the reviews read. dbt models the reviews in turn, so Dagster runs dbt in two
+    # steps with this one in between.
+    deps=[dg.AssetKey(["marts", name]) for name in ("fct_activities", "fct_daily_health", "fct_race_predictions")],
+    description="Claude's review of each new workout, in raw.payloads (source coach).",
+)
+def workout_reviews() -> dg.MaterializeResult[None]:
+    result = RawStore().load("coach", CoachSource().extract())
+    return dg.MaterializeResult(metadata={"load_id": result.load_id, "reviewed": result.inserted})
 
 
 configure_dbt_env()

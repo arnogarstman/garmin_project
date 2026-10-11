@@ -68,6 +68,13 @@ MARTS = {
         select m as metric, current_date as latest_date, 0 as days_behind, 100.0 as completeness_pct
         from (values ('sleep'), ('hrv')) t(m)""",
     "rpt_current_status": "select 'productive' as training_status, 45.0 as vo2max",
+    "fct_workout_reviews": """
+        select current_date - i::int as activity_date, (current_date - i::int)::timestamp as started_at_local,
+               'Run ' || i as activity_name, 'running' as activity_type, 'good' as status, 'Fine' as headline,
+               'easy run' as session_type, 'Ran easy.' as summary, ['Low heart rate', 'Even pace'] as went_well,
+               []::varchar[] as watch_out, 'A day.' as recovery, 'Intervals.' as next_session,
+               now()::timestamp as reviewed_at_utc
+        from range(8) t(i)""",
 }
 
 
@@ -86,3 +93,14 @@ def test_live_queries_return_the_snapshot_payload(tmp_path: Path) -> None:
         assert len(data._rows(con, queries[key])) <= 1, key
     assert [r["activity_name"] for r in data._rows(con, queries["recent"])] == [f"Run {i}" for i in range(8)]
     assert [r["activity_name"] for r in data._rows(con, queries["runs"])] == [f"Run {i}" for i in reversed(range(10))]
+
+
+def test_reviews_reach_the_page_newest_first_with_their_lists(tmp_path: Path) -> None:
+    """The lists travel as JSON text, which the page parses the same way from either mode."""
+    con = duckdb.connect(str(tmp_path / "w.duckdb"))
+    con.execute("create schema marts")
+    con.execute(f"create table marts.fct_workout_reviews as {MARTS['fct_workout_reviews']}")
+    rows = data._rows(con, data.live_queries()["reviews"])
+    assert [r["activity_name"] for r in rows] == [f"Run {i}" for i in range(6)]
+    assert json.loads(rows[0]["went_well"]) == ["Low heart rate", "Even pace"]
+    assert json.loads(rows[0]["watch_out"]) == []

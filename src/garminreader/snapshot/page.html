@@ -100,6 +100,20 @@ section{display:grid;gap:16px}
 .kv span:nth-child(3n+1){color:var(--ink2)}
 .kv b{font:600 1rem var(--display);font-variant-numeric:tabular-nums;text-align:right}
 .kv i{font:normal .74rem var(--mono);color:var(--muted);text-align:right}
+.wreview{display:grid;gap:12px}
+.wreview .card{gap:10px}
+.wlist{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px 24px}
+.wlist h4{margin:0 0 4px;font:500 .7rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.wlist ul{margin:0;padding-left:18px;color:var(--ink2);font-size:.9rem;display:grid;gap:4px}
+.wreview p b{color:var(--ink);font-weight:600}
+.wolder{border:1px solid var(--grid)}
+.wolder details+details{border-top:1px solid var(--grid)}
+.wolder summary{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:10px 14px;cursor:pointer}
+.wolder summary .d{font:500 .78rem var(--mono);color:var(--ink2)}
+.wolder summary h3{font-size:1rem;flex:1 1 220px}
+.wolder summary:focus-visible{outline:2px solid var(--c1);outline-offset:-2px}
+.wolder .body{padding:0 14px 12px;display:grid;gap:6px}
+.wolder .body p{font-size:.9rem}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:28px 32px}
 .chart{display:grid;gap:6px;min-width:0}
 .chart .cap{font-size:.85rem;color:var(--ink2)}
@@ -165,6 +179,11 @@ footer{font-size:.8rem;color:var(--muted)}
 <section>
   <div class="sechead"><h2>Today</h2><span class="eyebrow">marts.rpt_current_status</span></div>
   <div class="tiles" id="tiles"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Latest workout</h2><span class="eyebrow">marts.fct_workout_reviews · reviewed by Claude</span></div>
+  <div class="wreview" id="wreview"></div>
 </section>
 
 <section>

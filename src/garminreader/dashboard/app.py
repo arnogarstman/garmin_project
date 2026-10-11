@@ -10,10 +10,10 @@ from typing import Any, Literal
 import pandas as pd
 import streamlit as st
 
-from garminreader import config
+from garminreader import claude, config
 from garminreader import goal as goals
 from garminreader.dashboard import ai_insights as ai
-from garminreader.dashboard import charts, claude, formatting, queries, refresh
+from garminreader.dashboard import charts, formatting, queries, refresh
 from garminreader.dashboard import goal_coach as gc
 from garminreader.dashboard import insights as ins
 from garminreader.dashboard import run_calendar as rc

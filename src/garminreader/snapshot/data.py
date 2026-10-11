@@ -74,6 +74,14 @@ QUERIES: dict[str, str] = {
         where activity_date > current_date - interval {days} day and activity_type ilike '%run%'
         order by started_at_local
     """,
+    "reviews": """
+        select activity_date, activity_name, activity_type, status, headline, session_type, summary,
+               to_json(went_well) as went_well, to_json(watch_out) as watch_out, recovery, next_session,
+               reviewed_at_utc
+        from marts.fct_workout_reviews
+        order by started_at_local desc
+        limit 6
+    """,
     "lag": "select * from marts.rpt_metric_lag order by metric",
     "status": "select * from marts.rpt_current_status",
 }
