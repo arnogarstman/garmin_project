@@ -1,4 +1,4 @@
-"""The one place the dashboard's newer AI features call Claude: a structured
+"""The one place the project calls Claude (workout reviews, dashboard coach): a structured
 request validated against a pydantic model. Callers cache the result."""
 
 import anthropic

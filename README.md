@@ -23,19 +23,21 @@ flowchart LR
         R[(raw.payloads<br/>bronze)] -->|dbt| ST[Staging<br/>silver]
         ST --> M[Marts<br/>gold]
     end
+    M -->|coach source| C[Claude API]
+    C -->|workout reviews| R
     M --> D[Streamlit dashboard]
     M --> P[Snapshot page]
-    D -->|AI insights| C[Claude API]
+    D -->|AI insights| C
     O{{Dagster}} -.orchestrates.-> R & ST & M
 ```
 
 | Layer | What it is |
 |---|---|
-| **Ingest** | One pluggable `Source` per system. The Garmin source makes one record per API call and keeps the payload untouched. A source only fetches data; it never transforms it. |
+| **Ingest** | One pluggable `Source` per system. The Garmin source makes one record per API call and keeps the payload untouched. The coach source asks Claude to review each new workout against the training and recovery before it, and stores the answer the same way. A source only fetches data; it never transforms it. |
 | **Bronze** | Append-only `raw.payloads` table (payload and params as JSON, plus load metadata) and a `raw.loads` run log, in the same database as the models. A record is only stored when it is new or changed; a load and its run-log row commit in one transaction. Every model can be rebuilt from this table. |
 | **Silver, gold** | dbt on DuckDB. Staging keeps the newest version per day. Marts cover daily health, activities, body composition, race results with personal bests, and Garmin's race predictions. Every model has data tests, plus a dbt unit test for race detection. |
 | **Orchestration** | Dagster: raw ingest as daily partitions (backfill or rerun any day), each dbt model as an asset with its tests as checks, and freshness checks. |
-| **Serving** | Streamlit, reading marts only. It covers overview, activities, a running calendar, recovery, body, races, rule-based insights, and AI coaching through the Claude API: a goal-based coach, trend reads and an explanation of the race predictions. `uv run snapshot` renders the marts as one self-contained HTML page for static hosting. |
+| **Serving** | Streamlit, reading marts only. It covers overview, activities, a running calendar, recovery, body, races, rule-based insights, and AI coaching through the Claude API: a goal-based coach, trend reads and an explanation of the race predictions. `uv run snapshot` renders the marts as one self-contained HTML page for static hosting, with the latest workout review on top and a meal plan toward a weight goal: the page sets each day's energy and macro targets from Garmin's measured burn, the weight trend and the planned sessions, and Claude writes meals for them. |
 
 ## Engineering choices worth a look
 
@@ -92,6 +94,12 @@ When the run fails with "No working Garmin session": run the two `garmin-tokens`
 
 If Garmin starts refusing GitHub's IP addresses, run the same workflow on a machine at home: [add a self-hosted runner](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners) (it needs uv and the GitHub CLI) and set the repository variable `REFRESH_RUNNER` to `self-hosted`. GitHub keeps scheduling, logging and alerting; only the Garmin calls come from your own connection.
 
+### Workout reviews
+
+Each refresh, the coach source asks Claude to review every workout of the last 7 days without a review (at most 5 per run), against the training and recovery before it. The review lands in `marts.fct_workout_reviews` and on top of the page. Add `ANTHROPIC_API_KEY` as a repository secret to switch it on; without it, runs skip the reviews.
+
+To review workouts by hand, for example after changing the prompt in [`review.py`](src/garminreader/ingest/sources/coach/review.py): `uv run ingest coach [--since YYYY-MM-DD]`, then `uv run transform`.
+
 ## Quality
 
 ```sh
@@ -105,15 +113,16 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pyt
 
 ```
 src/garminreader/
-  ingest/          sources (Garmin), the raw store, the ingest CLI
+  ingest/          sources (Garmin, coach), the raw store, the ingest CLI
   synthetic/       the simulated athlete and its Garmin-shaped payloads
   orchestration/   Dagster assets, checks, schedule, the pipeline CLI
   dashboard/       Streamlit app; queries.py is its only database access
   snapshot/        static HTML page of the marts
+  claude.py        the one Claude API client (workout reviews, dashboard coach)
   config.py        every setting, from .env
   db.py            connections to the local file or MotherDuck
 transform/         dbt project: staging/ and marts/
-.github/workflows/ CI
+.github/workflows/ CI and the refresh
 ```
 
 ## Stack

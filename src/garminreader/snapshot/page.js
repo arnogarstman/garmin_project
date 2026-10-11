@@ -662,6 +662,9 @@ function renderPage(D) {
     $('cal').innerHTML = `<div class="mgrid">${html}</div>`;
   }
 
+  renderReviews(D.reviews);
+  renderMeals(D);
+
   // Recent activities
   $('recent').querySelector('tbody').innerHTML = D.recent.map(r => `<tr><td>${fmtDate(r.activity_date)}</td><td>${esc(r.activity_name)} <span class="eyebrow">${esc(lower(r.activity_type))}</span></td><td class="n">${num(r.km) && r.km > 0 ? r.km.toFixed(1) + ' km' : '–'}</td><td class="n">${num(r.min) ? hms(r.min * 60) : '–'}</td><td class="n">${num(r.pace) && /run/.test(r.activity_type || '') ? pace(r.pace) + ' /km' : '–'}</td><td class="n">${num(r.avg_hr) ? Math.round(r.avg_hr) : '–'}</td></tr>`).join('') || '<tr><td colspan="6">No activities yet.</td></tr>';
 

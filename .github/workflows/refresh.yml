@@ -1,6 +1,7 @@
 name: refresh
 
-# The daily data refresh: Garmin Connect into MotherDuck, then every dbt model, test and check.
+# The daily data refresh: Garmin Connect into MotherDuck, Claude's review of each new workout, then
+# every dbt model, test and check.
 # Garmin is only reached with the saved session (GARMIN_TOKENS), never with a password login,
 # and a session Garmin refreshes during the run is written back to the secret for the next run.
 # See "Scheduled refresh" in the README for the secrets and the yearly token renewal.
@@ -34,6 +35,8 @@ jobs:
     env:
       DATABASE: ${{ vars.DATABASE || 'md:garmin' }}
       MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+      # Optional: without it the run skips the workout reviews.
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       GARMIN_PASSWORD_LOGIN: "false"
       GARMIN_TOKEN_DIR: .garmin_tokens
     steps:

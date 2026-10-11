@@ -11,7 +11,8 @@ import pandas as pd
 import streamlit as st
 from pydantic import BaseModel, Field
 
-from garminreader.dashboard import claude, weekly
+from garminreader import claude
+from garminreader.dashboard import weekly
 from garminreader.dashboard.ai_insights import csv_block
 
 

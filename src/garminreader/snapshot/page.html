@@ -100,6 +100,38 @@ section{display:grid;gap:16px}
 .kv span:nth-child(3n+1){color:var(--ink2)}
 .kv b{font:600 1rem var(--display);font-variant-numeric:tabular-nums;text-align:right}
 .kv i{font:normal .74rem var(--mono);color:var(--muted);text-align:right}
+.wreview{display:grid;gap:12px}
+.wreview .card{gap:10px}
+.wlist{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px 24px}
+.wlist h4{margin:0 0 4px;font:500 .7rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.wlist ul{margin:0;padding-left:18px;color:var(--ink2);font-size:.9rem;display:grid;gap:4px}
+.wreview p b{color:var(--ink);font-weight:600}
+.wolder{border:1px solid var(--grid)}
+.wolder details+details{border-top:1px solid var(--grid)}
+.wolder summary{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:10px 14px;cursor:pointer}
+.wolder summary .d{font:500 .78rem var(--mono);color:var(--ink2)}
+.wolder summary h3{font-size:1rem;flex:1 1 220px}
+.wolder summary:focus-visible{outline:2px solid var(--c1);outline-offset:-2px}
+.wolder .body{padding:0 14px 12px;display:grid;gap:6px}
+.wolder .body p{font-size:.9rem}
+#mealstats .tile .v{font-size:1.6rem}
+#mealbudget{display:grid;gap:8px}
+.mealplan{display:grid;gap:12px;justify-items:start}
+.mealplan>*{justify-self:stretch}
+.mealplan>.livebtn{justify-self:start}
+.mmsg{font-size:.88rem;color:var(--warn)}
+.mdays{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
+.mday{border:1px solid var(--grid);border-top:3px solid var(--c2);padding:12px 14px;display:grid;gap:8px;align-content:start;min-width:0}
+.mday .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 8px}
+.mday .tot{font:500 .78rem var(--mono);color:var(--ink2)}
+.mday ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.mday li{display:grid;gap:1px;font-size:.9rem}
+.mday li b{font-weight:600}
+.mday li span:last-child{color:var(--ink2);font-size:.84rem}
+.mday p{font-size:.86rem}
+.mshop{border:1px solid var(--grid);padding:10px 14px}
+.mshop summary{cursor:pointer;font:600 1rem var(--display)}
+.mshop ul{columns:2 220px;margin:8px 0 0;padding-left:18px;color:var(--ink2);font-size:.9rem}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:28px 32px}
 .chart{display:grid;gap:6px;min-width:0}
 .chart .cap{font-size:.85rem;color:var(--ink2)}
@@ -168,6 +200,11 @@ footer{font-size:.8rem;color:var(--muted)}
 </section>
 
 <section>
+  <div class="sechead"><h2>Latest workout</h2><span class="eyebrow">marts.fct_workout_reviews · reviewed by Claude</span></div>
+  <div class="wreview" id="wreview"></div>
+</section>
+
+<section>
   <div class="sechead"><h2>Week in review</h2><span class="eyebrow">Last full week, Monday to Sunday</span></div>
   <div class="review" id="review"></div>
 </section>
@@ -214,6 +251,14 @@ footer{font-size:.8rem;color:var(--muted)}
 <section>
   <div class="sechead"><h2>Training plan</h2><span class="eyebrow">Week by week to race day · tap a week</span></div>
   <div class="plan" id="plan"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Meal plan</h2><span class="eyebrow">Weight goal · marts.fct_daily_energy</span></div>
+  <div id="mealstats"></div>
+  <div id="weightform" class="goalform"></div>
+  <div id="mealbudget"></div>
+  <div class="mealplan" id="mealplan"></div>
 </section>
 
 <section>

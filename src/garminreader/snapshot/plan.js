@@ -140,7 +140,25 @@ const PHASE_NOTE = {
   race: 'Race week: little volume, short sharpeners, and lots of rest.',
 };
 
+// The planned session (or null for rest) on each of the `n` days from today, for the meal plan:
+// [{date, kind, title, km}]. Empty without a plan (no prediction to set paces from).
+let planCtx = null;
+function upcomingSessions(n = 7) {
+  const plan = planCtx && buildPlan(planCtx);
+  if (!plan) return [];
+  const { G, sig } = planCtx, now = new Date(sig.x1), out = [];
+  for (let k = 0; k < n; k++) {
+    // Calendar days, not k * 24 h: a daylight saving change would shift the date.
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + k), day = date.getTime();
+    const index = w => Math.round((day - w.start) / DAY), w = plan.weeks.find(x => index(x) >= 0 && index(x) < 7);
+    const s = w ? weekSessions(plan, w, G).get(index(w)) : null;
+    out.push({ date: iso(date), kind: s?.kind || 'rest', title: s?.title || 'Rest', km: s ? (s.kind === 'race' ? plan.race.km : s.km) : 0 });
+  }
+  return out;
+}
+
 function renderPlan(ctx) {
+  planCtx = ctx;
   const plan = buildPlan(ctx);
   if (!plan) { $('plan').innerHTML = '<p class="cap">Needs a half marathon prediction from the watch to set training paces.</p>'; return; }
   const { weeks } = plan, { G, sig } = ctx;
