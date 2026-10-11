@@ -28,8 +28,8 @@ h3{font-size:1.05rem;font-weight:600}
 p{margin:0;max-width:66ch;color:var(--ink2)}
 .eyebrow{font:500 .72rem var(--mono);text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
 header{display:grid;gap:12px}
-.demo{display:inline-flex;gap:8px;align-items:center;font:500 .75rem var(--mono);color:var(--ink2);border:1px solid var(--grid);border-radius:999px;padding:3px 10px;width:max-content;max-width:100%}
-.demo i{width:8px;height:8px;border-radius:50%;background:var(--c3);display:block}
+.badge{display:inline-flex;gap:8px;align-items:center;font:500 .75rem var(--mono);color:var(--ink2);border:1px solid var(--grid);border-radius:999px;padding:3px 10px;width:max-content;max-width:100%}
+.badge i{width:8px;height:8px;border-radius:50%;background:var(--c3);display:block}
 .tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;overflow-x:auto;background:var(--bg);border-bottom:1px solid var(--grid);margin-block:-16px;padding-top:8px;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{font:600 1rem var(--display);color:var(--ink2);background:none;border:0;border-bottom:3px solid transparent;padding:8px 14px 9px;cursor:pointer;white-space:nowrap}
@@ -254,7 +254,7 @@ footer{font-size:.8rem;color:var(--muted)}
   <span class="eyebrow">Personal data pipeline · Garmin Connect → DuckDB → dbt</span>
   <h1>Garminreader</h1>
   <p id="intro">Ingests Garmin Connect data as raw JSON, models it with dbt on DuckDB, and serves a training dashboard.</p>
-  <span class="demo"><i></i><span id="profile"></span> · <span id="builtlbl">built</span> <span id="built"></span></span>
+  <span class="badge"><i></i>Live Garmin data · <span id="builtlbl">built</span> <span id="built"></span></span>
   <p class="livestate" id="livestate" role="status" hidden></p><button class="livebtn" id="livebtn" type="button" hidden>Run the query</button>
 </header>
 

@@ -34,7 +34,6 @@ class FakeGarmin:
 def warehouse(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
     path = str(tmp_path / "w.duckdb")
     monkeypatch.setenv("DATABASE", path)
-    monkeypatch.setenv("DATA_PROFILE", "prod")
     return path
 
 

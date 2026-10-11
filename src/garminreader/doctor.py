@@ -34,8 +34,6 @@ class Skip(Exception):
 
 
 def check_garmin() -> str:
-    if config.is_demo():
-        raise Skip("demo profile uses synthetic data")
     from garminreader.ingest.sources.garmin import auth
 
     api = auth.connect()
@@ -49,7 +47,7 @@ def check_database() -> str:
     if config.is_motherduck(database):
         config.require_env("MOTHERDUCK_TOKEN")
     elif not db.exists(database):
-        raise Skip(f"no database at {database} yet; created by the first ingest or synthesize")
+        raise Skip(f"no database at {database} yet; created by the first ingest")
     with db.connect(read_only=True, database=database) as con:
         con.execute("select 1").fetchone()
         row = con.execute(
@@ -105,7 +103,6 @@ def run(checks: dict[str, Callable[[], str]]) -> list[Result]:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    logger.info("Profile: %s", config.data_profile())
     results = run(CHECKS)
     for result in results:
         log = logger.error if result.status is Status.FAILED else logger.info

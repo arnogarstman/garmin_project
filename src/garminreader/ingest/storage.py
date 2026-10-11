@@ -115,13 +115,6 @@ class RawStore:
         last = row[0] if row else None
         return last.astimezone(UTC) if last else None
 
-    def clear(self, source: str) -> None:
-        """Delete every record and run of a source. Only for rebuilding fixture data (the demo)."""
-        _check_identifier(source)
-        with self._connect() as con:
-            con.execute("delete from raw.payloads where source = ?", [source])
-            con.execute("delete from raw.loads where source = ?", [source])
-
     def _connect(self) -> duckdb.DuckDBPyConnection:
         con = db.connect(database=self._database)
         con.execute(_DDL)

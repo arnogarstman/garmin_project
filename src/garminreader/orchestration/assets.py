@@ -1,11 +1,10 @@
 """The pipeline's assets: raw Garmin data (bronze), the dbt models (silver and
 gold) and Claude's workout reviews, all in the configured database.
 
-With real data, raw is partitioned by day, so a backfill is "materialize these
-partitions" and a failed day can be re-run on its own. Each partition fetches
-its day and the day before, because Garmin keeps updating recent days after
-late watch syncs; the raw store's change detection drops what did not change.
-The demo has one unpartitioned raw asset that regenerates the simulated year.
+Raw is partitioned by day, so a backfill is "materialize these partitions" and
+a failed day can be re-run on its own. Each partition fetches its day and the
+day before, because Garmin keeps updating recent days after late watch syncs;
+the raw store's change detection drops what did not change.
 """
 
 from collections.abc import Iterator
@@ -53,17 +52,6 @@ def garmin_raw(context: dg.AssetExecutionContext) -> Iterator[dg.MaterializeResu
     day = date.fromisoformat(context.partition_key)
     result = RawStore().load("garmin", GarminSource().extract(since=day - timedelta(days=1), until=day))
     yield from _results({"load_id": result.load_id, "fetched": result.fetched, "stored": result.inserted})
-
-
-@dg.multi_asset(
-    name="synthetic_raw",
-    specs=_raw_specs("Raw responses of a simulated athlete, shaped like Garmin's (demo profile only)."),
-)
-def synthetic_raw() -> Iterator[dg.MaterializeResult[None]]:
-    from garminreader.synthetic.cli import build
-
-    days, activities = build(end=date.today())
-    yield from _results({"days": days, "activities": activities})
 
 
 @dg.asset(

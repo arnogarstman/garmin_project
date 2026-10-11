@@ -1,4 +1,4 @@
-// Live mode: window.__LIVE__ = {server, tool, database, queries, single_row, goal, profile} (written by
+// Live mode: window.__LIVE__ = {server, tool, database, queries, single_row, goal} (written by
 // snapshot/render.py). Instead of embedded data, the page runs each of data.live_queries() through the
 // viewer's MotherDuck connector (the `mcp` capability of a claude.ai artifact), one call per query
 // because the connector caps the size of a result, and renders with renderPage() once all have answered.
@@ -58,7 +58,7 @@ async function startLive(cfg) {
       pending = 0;
       if (keys.some(k => !(k in parts))) return;
       const builtAt = new Date(Math.min(...keys.map(k => stamps[k]))).toISOString();
-      renderPage({ ...parts, built_at: builtAt, goal: cfg.goal, profile: cfg.profile });
+      renderPage({ ...parts, built_at: builtAt, goal: cfg.goal });
       $('footer').textContent = footer;
       shown = true;
       btn.hidden = true;

@@ -17,7 +17,7 @@ logger = logging.getLogger("snapshot")
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     parser = argparse.ArgumentParser(description=__doc__)
-    default_out = config.PROJECT_ROOT / "data" / ("demo" if config.is_demo() else "") / "snapshot.html"
+    default_out = config.PROJECT_ROOT / "data" / "snapshot.html"
     parser.add_argument("--out", type=Path, default=default_out)
     parser.add_argument("--days", type=int, default=365, help="history shown in the charts")
     parser.add_argument("--live", action="store_true", help="query MotherDuck when opened instead of embedding data")

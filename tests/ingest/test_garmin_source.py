@@ -126,16 +126,6 @@ def test_race_predictions_are_requested_per_day() -> None:
     assert ("get_race_predictions", ("2026-03-10", "2026-03-10", "daily")) in api.calls
 
 
-def test_real_ingest_is_refused_in_demo_profile(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`ingest` refuses to run with DATA_PROFILE=demo, so real Garmin data can never end up in the published demo."""
-    from garminreader.ingest import cli
-
-    monkeypatch.setenv("DATA_PROFILE", "demo")
-    monkeypatch.setattr("sys.argv", ["ingest", "garmin"])
-    with pytest.raises(SystemExit):
-        cli.main()
-
-
 def test_until_limits_the_window() -> None:
     """With `until`, per-day endpoints stop at that day: a Dagster partition fetches only its own window."""
     api = FakeGarmin()

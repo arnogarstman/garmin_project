@@ -27,25 +27,16 @@ jobs:
       - run: uv run mypy
       - run: uv run pytest
 
-  pipeline:
-    name: Pipeline on synthetic data
-    # The demo athlete is the fixture data: the real loader, every dbt model and
-    # test, and the Dagster checks run end to end, without any Garmin account.
+  definitions:
+    name: dbt project and Dagster definitions
+    # Without data in CI: dbt parses every model, test and source, and Dagster loads the
+    # asset graph built from them. The scheduled refresh builds and tests against MotherDuck.
     runs-on: ubuntu-latest
-    env:
-      DATA_PROFILE: demo
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       - run: uv sync --locked
+      - run: uv run transform parse
       - run: uv run dagster definitions validate
-      - run: uv run pipeline
-      - name: dbt docs
-        run: uv run transform docs generate
-      - uses: actions/upload-artifact@v7
-        with:
-          name: dbt-docs
-          path: transform/target/
-          retention-days: 14

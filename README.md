@@ -1,47 +1,63 @@
 # garmin_project
 
-A personal data platform for training data. It ingests my Garmin Connect data into DuckDB or
-MotherDuck, models it with dbt, orchestrates it with Dagster, has Claude review every workout, and
-serves it all in a live training dashboard: a single HTML page published as a Claude artifact,
-plus a Streamlit app for local use.
+A personal data platform for training data. It ingests my Garmin Connect data into MotherDuck (or
+a local DuckDB file), models it with dbt, orchestrates it with Dagster, has Claude review every
+workout, and serves it in a live training dashboard: one HTML page published as a Claude artifact.
 
 It is a real, daily-used pipeline, built the way I would build one at work: raw data kept as an
-append-only, replayable bronze layer, every transformation in tested dbt models, refreshes that run
-in the cloud without a password, and CI that runs the whole pipeline on synthetic data.
+append-only, replayable bronze layer, every transformation in tested dbt models, and refreshes that
+run in the cloud within the hour after a workout, without ever logging in with a password.
 
-![Running calendar: circles sized by distance, rings on hard runs, red dots on low-recovery days, weekly totals with week-on-week change](docs/images/running-calendar.png)
+![The Today tab: status tiles, Claude's review of the latest workout, and the coach's read](docs/images/dashboard-today.png)
 
-*The running calendar of the Streamlit app, here on the synthetic demo athlete.*
+*All pictures show a simulated athlete, not personal data.*
 
-## What it does
+## The dashboard
 
-- **Keeps itself up to date.** A GitHub Actions workflow refreshes MotherDuck every morning, and
-  through the day checks Garmin every 30 minutes for a new workout, so a workout is in the
-  dashboard within about 45 minutes of the watch syncing. No machine of mine needs to be on.
-- **Reviews every workout.** Claude judges each new session the way a coach would the same
-  evening: what it actually was, whether it fit the recent load and recovery, how it compares with
-  similar runs, and what to do next.
-- **Serves a live dashboard.** One self-contained page, organised in tabs:
+One self-contained page in five tabs. It holds no data itself: opened on claude.ai, it queries the
+marts through the viewer's MotherDuck connector, refreshes every 15 minutes while open, and keeps
+the goals you enter in the artifact's own database.
 
-  | Tab | What it shows |
-  |---|---|
-  | **Today** | Status tiles (training status, readiness, VO2 max, resting heart rate, race prediction, weight), the latest workout review, and a coach's read: recovery, intensity balance, aerobic efficiency, load progression, long run, endurance, sleep, consistency, training paces and next week. |
-  | **Training** | A race goal with a race-day projection, prediction, volume, VO2 max and load charts, a week-by-week training plan with a reason for every session, and the weekly review. |
-  | **Nutrition** | A weight goal and a day-by-day meal plan. The page sets each day's energy and macro targets from Garmin's measured burn, the weight trend and the planned sessions, within fixed safety limits; Claude writes meals for those targets, with macros per meal and day and week totals. |
-  | **History** | One period filter (3, 6 or 12 months) over summary tiles against the period before, volume per month or week, a daily training load heatmap, pace per run with its trend, resting heart rate, HRV and weight, when you train, run distances, time per activity, records, a filterable activity log, and a day-by-day calendar of runs and weigh-ins. |
-  | **About** | How the pipeline works and how fresh each metric is. |
+**Today.** Training status, readiness, VO2 max, resting heart rate, race prediction and weight;
+Claude's review of the latest workout (what the session was, whether it fit your recent load and
+recovery, how it compares with similar runs, and what to do next); and a coach's read on recovery,
+intensity balance, aerobic efficiency, load progression, long runs, endurance, sleep, consistency,
+training paces and next week.
 
-  The page holds no data: when opened on claude.ai it queries the marts through the viewer's
-  MotherDuck connector, and keeps the race goal, weight goal and meal plan in the artifact's own
-  database.
+**Training.** A race goal with a race-day projection from the trend in Garmin's predictions,
+charts for predictions, volume, VO2 max and training load, a week-by-week plan to race day with a
+reason for every session, and a review of last week.
+
+![The Training tab: race goal with projection, prediction and volume charts](docs/images/dashboard-training.png)
+
+**Nutrition.** A weight goal and a day-by-day meal plan. The page sets each day's energy and macro
+targets from Garmin's measured burn, the weight trend, today's workout and the planned sessions,
+within fixed limits (at most 0.75% of body weight a week, never under 1,500 kcal or 25% below the
+day's burn). Claude then writes meals for those targets, with macros per meal and totals per day
+and week.
+
+![The Nutrition tab: weight goal, trend and the energy budget per day](docs/images/dashboard-nutrition.png)
+
+**History.** One period filter (3, 6 or 12 months) over everything: summary tiles against the
+period before, running volume per month or week, a heatmap of daily training load, pace per run
+with its trend, resting heart rate, HRV and weight, when you train, run distances, time per
+activity, records, and a filterable activity log.
+
+![The History tab: period filter, summary, volume and training load heatmap](docs/images/dashboard-history.png)
+
+The tab ends with a calendar of runs and weigh-ins: bubbles sized by distance, and each weigh-in
+with its change, green when it moves toward the weight goal.
+
+![The calendar: runs as bubbles, weigh-ins with their change toward the goal](docs/images/dashboard-calendar.png)
+
+**About.** How the pipeline works, and how far behind each metric is.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     G[Garmin Connect API] -->|ingest, change detection| R
-    S[Synthetic athlete<br/>demo + CI] -->|same raw format| R
-    subgraph DB[DuckDB file or MotherDuck]
+    subgraph DB[MotherDuck or a DuckDB file]
         R[(raw.payloads<br/>bronze)] -->|dbt| ST[Staging<br/>silver]
         ST --> M[Marts<br/>gold]
     end
@@ -57,9 +73,9 @@ flowchart LR
 |---|---|
 | **Ingest** | One pluggable `Source` per system, registered in [`sources/__init__.py`](src/garminreader/ingest/sources/__init__.py). The Garmin source makes one record per API call and keeps the payload untouched. The coach source reads the marts, asks Claude to review each workout without a review, and stores the answer the same way. A source only fetches; it never transforms. |
 | **Bronze** | Append-only `raw.payloads` (payload and params as JSON, plus load metadata) and a `raw.loads` run log. A record is stored only when it is new or changed, and a load commits with its run-log row in one transaction. Every model can be rebuilt from this table. |
-| **Silver, gold** | dbt on DuckDB. Staging keeps the newest version of each record. Marts: daily health, daily energy, activities, body composition, race results with personal bests, race predictions, workout reviews, current status, heart rate zones, and data freshness reports. Every model has data tests, plus a dbt unit test for race detection. |
+| **Silver, gold** | dbt. Staging keeps the newest version of each record. Marts: daily health, daily energy, activities, body composition, race results with personal bests, race predictions, workout reviews, current status, heart rate zones, and data freshness reports. Every model has data tests, plus a dbt unit test for race detection. |
 | **Orchestration** | Dagster: raw ingest as daily partitions (backfill or rerun any day), each dbt model as an asset with its tests as checks, the review step between the two halves of dbt (Dagster splits the dbt run around it), and freshness checks. |
-| **Serving** | The dashboard page ([`snapshot/`](src/garminreader/snapshot/)) and the Streamlit app ([`dashboard/`](src/garminreader/dashboard/)), both reading marts only. |
+| **Serving** | The dashboard page ([`snapshot/`](src/garminreader/snapshot/)), and a Streamlit app for local use ([`dashboard/`](src/garminreader/dashboard/)) with its own AI coach. Both read marts only. |
 
 ## Engineering choices worth a look
 
@@ -69,42 +85,26 @@ flowchart LR
 - **AI output as a source.** Claude's reviews land in `raw.payloads` like any API response and are
   modelled by dbt, so a review is written once, kept, and traceable to the model and prompt version
   that wrote it ([coach/](src/garminreader/ingest/sources/coach/)).
-- **Numbers by code, words by Claude.** The meal plan's energy and macro targets are computed in
-  the page from measured data with fixed limits (weekly weight change, an intake floor, the largest
-  deficit); Claude only turns them into meals.
-- **A synthetic athlete in the exact API format.** A simulated year of training (fitness and
-  fatigue, VO2 max, race times from Daniels' VDOT formulas, an illness, two half marathons) written
-  as raw Garmin records, so the real loader, every dbt model and both front ends run on it
-  unchanged. A contract test fails if the real source gains an endpoint the generator does not
-  cover ([synthetic/](src/garminreader/synthetic/)).
-- **Real and demo data kept apart.** `DATA_PROFILE=prod|demo`. The demo reads `DEMO_*` settings
-  only, and real ingest refuses to run in demo, so the public demo can never contain personal data.
+- **Numbers by code, words by Claude.** The meal plan's targets are computed from measured data
+  with fixed limits; Claude only turns them into meals. The workout review prompt gets the session
+  and its context as tables and must cite the numbers it uses.
 - **Cloud refreshes without a password.** The workflow only resumes a Garmin session created on my
   own machine and writes a refreshed session back to its secret; it never tries a password login,
   which is what makes Garmin ask for MFA or lock an account.
+- **Few calls to an unofficial API.** The workout check asks Garmin only during training hours and
+  stops once today's workout is in: at most about 100 calls a day.
 
 ## Run it
 
-You need Python 3.12+ and [uv](https://docs.astral.sh/uv/).
-
-**Demo, no Garmin account needed:**
+You need Python 3.12+, [uv](https://docs.astral.sh/uv/) and a Garmin Connect account.
 
 ```sh
 uv sync
-export DATA_PROFILE=demo
-uv run synthesize        # a simulated year of a runner, as raw Garmin responses
-uv run transform         # dbt build: models and tests
-uv run snapshot          # the dashboard page with the data embedded: data/demo/snapshot.html
-uv run dashboard         # or the Streamlit app
-```
-
-**Your own Garmin data:**
-
-```sh
 cp .env.example .env     # GARMIN_EMAIL, GARMIN_PASSWORD; optionally DATABASE=md:garmin, MOTHERDUCK_TOKEN, ANTHROPIC_API_KEY
 uv run doctor            # checks Garmin, the database, dbt and Anthropic
+uv run ingest garmin --since 2026-01-01   # asks for an MFA code once, then caches the session
 uv run pipeline          # ingest, workout reviews, dbt build and checks, as the scheduled run does
-uv run dashboard
+uv run snapshot          # the dashboard page with the data embedded: data/snapshot.html
 ```
 
 ### Commands
@@ -116,39 +116,34 @@ uv run dashboard
 | `uv run transform [dbt args]` | dbt against the configured database; `build` by default. |
 | `uv run pipeline [--partition YYYY-MM-DD]` | The Dagster job in process: ingest, reviews, dbt build, checks. |
 | `uv run dagster dev` | The Dagster UI: lineage, partitions, backfills, check results. |
-| `uv run snapshot [--live] [--days N] [--out PATH]` | The dashboard page. `--live` embeds no data and queries MotherDuck when opened (see below). |
+| `uv run snapshot [--live] [--days N] [--out PATH]` | The dashboard page. `--live` embeds no data and queries MotherDuck when opened. |
 | `uv run dashboard` | The Streamlit app. |
 | `uv run doctor` | Checks every connection; exits non-zero on a failure. |
 | `uv run workout-check` | Prints `new=true` when Garmin's newest activity is not stored yet. |
 | `uv run garmin-tokens login\|export` | Creates the Garmin session on your machine, and prints it for the `GARMIN_TOKENS` secret. |
-| `uv run explore` | The DuckDB UI on a snapshot of a local database. |
-| `DATA_PROFILE=demo uv run synthesize [--days 365] [--seed 42]` | Rebuilds the demo database. |
 
-### The dashboard page as a Claude artifact
+### Publishing the dashboard
 
 ```sh
 uv run snapshot --live --out data/snapshot.html
 ```
 
 Publish that file as a claude.ai artifact with the capabilities `mcp` (MotherDuck, tool `query`),
-`db` (rule: `settings` read by viewers, written by editors), `user` and `sample`. The page then runs
-one query per section through the viewer's MotherDuck connector each time it opens and every 15
-minutes while open, so new data appears without republishing. Republish only when the page's code
-changes.
+`db` (rule: `settings` read by viewers, written by editors), `user` and `sample`. New data then
+appears without republishing; republish only when the page's code changes.
 
 ## Scheduled refresh
 
 [`.github/workflows/refresh.yml`](.github/workflows/refresh.yml) runs on GitHub's servers against
 MotherDuck:
 
-- **Daily refresh** at 04:17 UTC (about 06:00 in Amsterdam): ingest of that day and the day before
-  (about 18 Garmin calls), workout reviews, dbt build and checks.
-- **Workout check** every 30 minutes: `uv run workout-check` asks Garmin for the newest activity
-  and the run continues into the full refresh only when `raw.payloads` lacks it. To keep calls to
-  Garmin few, a check asks nothing outside 06:00 to 22:00 in Amsterdam, or once a workout from
-  today is stored; the next morning's refresh picks up a second one. At most about 100 calls a
-  day, far fewer on a day with an early workout. A failed check shows a warning rather than
-  failing, so a broken session fails the daily run once instead of every check.
+- **Daily refresh** at 04:17 UTC (about 06:00 in Amsterdam): that day and the day before from
+  Garmin (about 18 calls), workout reviews, dbt build and checks.
+- **Workout check** every 30 minutes: `uv run workout-check` asks Garmin for the newest activity,
+  and the run continues into the full refresh only when `raw.payloads` lacks it. A check asks
+  nothing outside 06:00 to 22:00 in Amsterdam, or once a workout from today is stored; the next
+  morning's refresh picks up a second one. A failed check shows a warning instead of failing, so a
+  broken session fails the daily run once rather than every check.
 - **By hand** from the Actions tab, optionally for one day.
 
 GitHub can start scheduled runs late when busy, and pauses the schedules of a public repository
@@ -191,23 +186,24 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pyt
 
 - **Python:** fully typed (`mypy --strict`). Tests cover the raw store's guarantees, the Garmin
   source (retries, 404s, windows), the workout check, the coach source (selection, cap, failures),
-  the synthetic contract, the Dagster definitions, the dashboard page's queries, and the dashboard's
-  coaching logic.
-- **CI on every pull request:** the checks above, and the pipeline end to end on synthetic data.
+  the Dagster definitions, the dashboard page's queries, and the Streamlit app's coaching logic.
+- **CI on every pull request:** the checks above, plus a dbt parse of every model, test and source,
+  and a validation of the Dagster asset graph built from them. The scheduled refresh builds and
+  tests the models against the real data.
 
 ## Layout
 
 ```
 src/garminreader/
   ingest/          sources (Garmin, coach), the raw store, the ingest CLI, the workout check
-  synthetic/       the simulated athlete and its Garmin-shaped payloads
   orchestration/   Dagster assets, checks, schedule, the pipeline CLI
   snapshot/        the dashboard page: template, one script per tab feature, live or embedded data
   dashboard/       the Streamlit app; queries.py is its only database access
   claude.py        the one Claude API client
   config.py        every setting, from .env
-  db.py            connections to the local file or MotherDuck
+  db.py            connections to MotherDuck or a local file
 transform/         dbt project: staging/ and marts/
+docs/images/       the README pictures
 .github/workflows/ CI and the refresh
 ```
 

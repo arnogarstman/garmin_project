@@ -7,8 +7,6 @@ from typing import Any
 
 import pandas as pd
 
-LEVELS = ["rest", "easy", "moderate", "hard"]
-
 PLAN_BY_LEVEL = {
     "rest": [
         "Full rest day, or gentle mobility/walking only.",

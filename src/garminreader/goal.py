@@ -1,6 +1,6 @@
 """The athlete's training goal: what they enter in the dashboard, persisted as
 JSON at `config.goal_path()` (a local file, or object storage in the cloud) so it survives restarts. It is user input,
-not warehouse data, and is shared by the dashboard and the demo builder."""
+not warehouse data, and is shared by the dashboard and the dashboard page."""
 
 import logging
 from datetime import date

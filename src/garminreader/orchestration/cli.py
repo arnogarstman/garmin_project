@@ -14,21 +14,17 @@ from zoneinfo import ZoneInfo
 
 import dagster as dg
 
-from garminreader import config
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="pipeline", description=__doc__.splitlines()[0])
-    parser.add_argument("--partition", default=None, help="day to ingest (default today); ignored for the demo")
+    parser.add_argument("--partition", default=None, help="day to ingest (default today in Amsterdam)")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     from garminreader.orchestration import assets
     from garminreader.orchestration.definitions import JOB_NAME, defs
 
-    partition = None
-    if not config.is_demo():
-        partition = args.partition or datetime.now(ZoneInfo(assets.TIMEZONE)).date().isoformat()
+    partition = args.partition or datetime.now(ZoneInfo(assets.TIMEZONE)).date().isoformat()
     result = defs.resolve_job_def(JOB_NAME).execute_in_process(
         partition_key=partition, instance=dg.DagsterInstance.ephemeral(), raise_on_error=False
     )
