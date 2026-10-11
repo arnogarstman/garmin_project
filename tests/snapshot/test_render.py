@@ -68,6 +68,10 @@ MARTS = {
         select m as metric, current_date as latest_date, 0 as days_behind, 100.0 as completeness_pct
         from (values ('sleep'), ('hrv')) t(m)""",
     "rpt_current_status": "select 'productive' as training_status, 45.0 as vo2max",
+    "fct_daily_energy": """
+        select current_date - i::int as calendar_date, 2500.0 + i as total_kcal, (i % 2)::bigint as workouts,
+               600.0 as workout_kcal, 8.0 as run_km, 80.0 - i / 10 as weight_kg
+        from range(50) t(i)""",
     "fct_workout_reviews": """
         select current_date - i::int as activity_date, (current_date - i::int)::timestamp as started_at_local,
                'Run ' || i as activity_name, 'running' as activity_type, 'good' as status, 'Fine' as headline,
@@ -104,3 +108,14 @@ def test_reviews_reach_the_page_newest_first_with_their_lists(tmp_path: Path) ->
     assert [r["activity_name"] for r in rows] == [f"Run {i}" for i in range(6)]
     assert json.loads(rows[0]["went_well"]) == ["Low heart rate", "Even pace"]
     assert json.loads(rows[0]["watch_out"]) == []
+
+
+def test_energy_covers_six_weeks_oldest_first(tmp_path: Path) -> None:
+    """The meal plan's budget reads six weeks of burn and weigh-ins, in date order."""
+    con = duckdb.connect(str(tmp_path / "w.duckdb"))
+    con.execute("create schema marts")
+    con.execute(f"create table marts.fct_daily_energy as {MARTS['fct_daily_energy']}")
+    rows = data._rows(con, data.live_queries()["energy"])
+    assert len(rows) == 42
+    assert [r["d"] for r in rows] == sorted(r["d"] for r in rows)
+    assert {"kcal", "workouts", "workout_kcal", "run_km", "weight"} <= set(rows[0])

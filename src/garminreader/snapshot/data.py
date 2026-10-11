@@ -82,6 +82,13 @@ QUERIES: dict[str, str] = {
         order by started_at_local desc
         limit 6
     """,
+    "energy": """
+        select calendar_date as d, total_kcal as kcal, workouts, round(workout_kcal) as workout_kcal,
+               round(run_km, 1) as run_km, round(weight_kg, 2) as weight
+        from marts.fct_daily_energy
+        where calendar_date > current_date - interval 42 day
+        order by 1
+    """,
     "lag": "select * from marts.rpt_metric_lag order by metric",
     "status": "select * from marts.rpt_current_status",
 }

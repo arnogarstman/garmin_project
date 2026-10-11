@@ -23,6 +23,16 @@ models:
       - name: activity_date
         data_tests: [not_null]
 
+  - name: fct_daily_energy
+    description: >
+      Energy per day: Garmin's total calories burned (resting plus active; today's is partial),
+      the day's workouts and the weigh-in average. One row per ingested day.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+      - name: workouts
+        data_tests: [not_null]
+
   - name: fct_workout_reviews
     description: >
       Claude's review of a workout (see the coach source), with the activity it reviews.

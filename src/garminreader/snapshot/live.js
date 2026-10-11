@@ -35,7 +35,7 @@ function liveRows(result) {
 }
 
 function clearPage() {
-  for (const id of ['tiles', 'wreview', 'review', 'race', 'coach', 'plan', 'ch-pred', 'cap-pred', 'ch-km', 'cap-km', 'ch-vo2', 'cap-vo2', 'ch-load', 'cap-load', 'ch-zones', 'cal', 'calkeys', 'health', 'built']) $(id).textContent = '';
+  for (const id of ['tiles', 'wreview', 'mealstats', 'mealbudget', 'mealplan', 'review', 'race', 'coach', 'plan', 'ch-pred', 'cap-pred', 'ch-km', 'cap-km', 'ch-vo2', 'cap-vo2', 'ch-load', 'cap-load', 'ch-zones', 'cal', 'calkeys', 'health', 'built']) $(id).textContent = '';
   $('recent').querySelector('tbody').textContent = '';
 }
 
