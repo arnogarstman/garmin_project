@@ -176,11 +176,13 @@ Each day's targets below are already worked out from the athlete's Garmin data: 
 Athlete: ${b.weight.toFixed(1)} kg${num(b.trend) ? `, trend ${b.trend.toFixed(2)} kg per week over 4 weeks` : ''}, ${goal}.
 Main meals per day: ${g?.meals_per_day || 3}, plus snacks where needed to reach the targets.
 Diet and preferences (the athlete's own words): ${g?.diet ? JSON.stringify(g.diet) : 'none given'}.
+Foods the athlete eats a lot and usually has at home (their own words): ${g?.staples ? JSON.stringify(g.staples) : 'none given'}.
 
 Days:
 ${days}
 
-Guidance:
+Guidance:${g?.staples ? `
+- Build the meals around the foods the athlete eats a lot, where they fit the day's targets, and vary how they are used across the week. Count them as at home: the shopping list holds only what the plan needs beyond them.` : ''}
 - Time carbohydrate around training: a carbohydrate-rich meal two to three hours before long or hard sessions, and protein with carbohydrate within an hour after.
 - Simple dishes from ingredients in an ordinary supermarket. Repeat breakfasts and reuse leftovers so shopping stays short.
 - Portions in grams or household measures.
@@ -236,7 +238,7 @@ async function startMeals() {
   const summary = () => {
     const g = weightGoal, edit = meals.canWrite ? `<div class="btns"><button type="button" id="weight-edit">${g ? 'Change goal' : 'Set your weight goal'}</button></div>` : '';
     box.innerHTML = g
-      ? `<span class="eyebrow">Your weight goal</span><h3>${g.target_kg.toFixed(1)} kg${g.target_date ? ` by ${fmtDate(g.target_date)} ${new Date(t(g.target_date)).getFullYear()}` : ''}</h3><p>${g.meals_per_day || 3} meals a day${g.diet ? ` · ${esc(g.diet)}` : ''}</p>${edit}`
+      ? `<span class="eyebrow">Your weight goal</span><h3>${g.target_kg.toFixed(1)} kg${g.target_date ? ` by ${fmtDate(g.target_date)} ${new Date(t(g.target_date)).getFullYear()}` : ''}</h3><p>${g.meals_per_day || 3} meals a day${g.diet ? ` · ${esc(g.diet)}` : ''}</p>${g.staples ? `<p>Eats a lot: ${esc(g.staples)}</p>` : ''}${edit}`
       : `<p class="cap">No weight goal set: the targets keep your weight steady.</p>${edit}`;
     const btn = $('weight-edit');
     if (btn) btn.onclick = () => { editing = true; form(); };
@@ -249,6 +251,7 @@ async function startMeals() {
       <label>By (optional)<input name="target_date" type="date" value="${esc(g.target_date || '')}"></label>
       <label>Main meals a day<select name="meals_per_day">${[2, 3, 4, 5].map(n => `<option${(g.meals_per_day || 3) === n ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <label style="grid-column:1/-1">Diet, allergies, dislikes (optional)<input name="diet" maxlength="200" placeholder="e.g. vegetarian, no nuts, quick lunches" value="${esc(g.diet || '')}"></label>
+      <label style="grid-column:1/-1">Foods you eat a lot (optional)<input name="staples" maxlength="200" placeholder="e.g. soft cheese, chicken breast, oats" value="${esc(g.staples || '')}"></label>
       <div class="btns"><button type="submit" class="primary">Save</button>${weightGoal ? '<button type="button" id="weight-cancel">Cancel</button><button type="button" id="weight-clear">Remove goal</button>' : ''}</div>
     </form>${msg ? `<p class="msg">${esc(msg)}</p>` : ''}`;
     const f = $('weight-f');
@@ -259,7 +262,7 @@ async function startMeals() {
       if (v.target_date && v.target_date <= iso(new Date())) { form('Pick a date in the future, or leave it empty.'); return; }
       f.querySelector('button[type=submit]').disabled = true;
       try {
-        await ref.set({ target_kg: Math.round(kg * 10) / 10, target_date: v.target_date || null, meals_per_day: Number(v.meals_per_day) || 3, diet: v.diet.trim(), updated_at: new Date().toISOString() });
+        await ref.set({ target_kg: Math.round(kg * 10) / 10, target_date: v.target_date || null, meals_per_day: Number(v.meals_per_day) || 3, diet: v.diet.trim(), staples: v.staples.trim(), updated_at: new Date().toISOString() });
         editing = false;
         summary();
       } catch (err) {

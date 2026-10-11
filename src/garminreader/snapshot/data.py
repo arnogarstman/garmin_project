@@ -96,6 +96,13 @@ QUERIES: dict[str, str] = {
         where calendar_date > current_date - interval 42 day
         order by 1
     """,
+    "coach": """
+        select calendar_date as d, workout_name as name, description, round(duration_min) as min,
+               training_effect as effect, status, is_long, is_rest_day as rest, plan_name, plan_end_date
+        from marts.fct_coach_workouts
+        where calendar_date > current_date - interval 56 day
+        order by calendar_date, workout_name
+    """,
     "lag": "select * from marts.rpt_metric_lag order by metric",
     "status": "select * from marts.rpt_current_status",
 }

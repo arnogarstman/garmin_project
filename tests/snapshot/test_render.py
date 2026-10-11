@@ -75,6 +75,11 @@ MARTS = {
         select current_date - i::int as calendar_date, 2500.0 + i as total_kcal, (i % 2)::bigint as workouts,
                600.0 as workout_kcal, 8.0 as run_km, 80.0 - i / 10 as weight_kg
         from range(50) t(i)""",
+    "fct_coach_workouts": """
+        select current_date + i::int as calendar_date, 'Basis' as workout_name, '5:30/km' as description,
+               30.0 as duration_min, 'AEROBIC_BASE' as training_effect, 'NOT_COMPLETE' as status, false as is_long,
+               false as is_rest_day, 'Halve Marathon plan' as plan_name, date '2027-01-10' as plan_end_date
+        from range(-3, 4) t(i)""",
     "fct_workout_reviews": """
         select current_date - i::int as activity_date, (current_date - i::int)::timestamp as started_at_local,
                'Run ' || i as activity_name, 'running' as activity_type, 'good' as status, 'Fine' as headline,

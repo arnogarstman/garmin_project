@@ -26,7 +26,8 @@ training paces and next week.
 
 **Training.** A race goal with a race-day projection from the trend in Garmin's predictions,
 charts for predictions, volume, VO2 max and training load, a week-by-week plan to race day with a
-reason for every session, and a review of last week.
+reason for every session, and a review of last week. When you follow a Garmin Coach plan, each day
+also shows what Coach scheduled (workout, duration, pace, training effect) and whether you did it.
 
 ![The Training tab: race goal with projection, prediction and volume charts](docs/images/dashboard-training.png)
 
@@ -73,7 +74,7 @@ flowchart LR
 |---|---|
 | **Ingest** | One pluggable `Source` per system, registered in [`sources/__init__.py`](src/garminreader/ingest/sources/__init__.py). The Garmin source makes one record per API call and keeps the payload untouched. The coach source reads the marts, asks Claude to review each workout without a review, and stores the answer the same way. A source only fetches; it never transforms. |
 | **Bronze** | Append-only `raw.payloads` (payload and params as JSON, plus load metadata) and a `raw.loads` run log. A record is stored only when it is new or changed, and a load commits with its run-log row in one transaction. Every model can be rebuilt from this table. |
-| **Silver, gold** | dbt. Staging keeps the newest version of each record. Marts: daily health, daily energy, activities, body composition, race results with personal bests, race predictions, workout reviews, current status, heart rate zones, and data freshness reports. Every model has data tests, plus a dbt unit test for race detection. |
+| **Silver, gold** | dbt. Staging keeps the newest version of each record. Marts: daily health, daily energy, activities, Garmin Coach workouts, body composition, race results with personal bests, race predictions, workout reviews, current status, heart rate zones, and data freshness reports. Every model has data tests, plus a dbt unit test for race detection. |
 | **Orchestration** | Dagster: raw ingest as daily partitions (backfill or rerun any day), each dbt model as an asset with its tests as checks, the review step between the two halves of dbt (Dagster splits the dbt run around it), and freshness checks. |
 | **Serving** | The dashboard page ([`snapshot/`](src/garminreader/snapshot/)), and a Streamlit app for local use ([`dashboard/`](src/garminreader/dashboard/)) with its own AI coach. Both read marts only. |
 

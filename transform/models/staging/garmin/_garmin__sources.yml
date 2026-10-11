@@ -33,6 +33,8 @@ sources:
                       - activity
                       - device_last_used
                       - heart_rate_zones
+                      - calendar
+                      - adaptive_training_plan
           - name: params
             description: Request parameters; per-day endpoints carry {"date"}, activities {"activity_id"}.
           - name: payload

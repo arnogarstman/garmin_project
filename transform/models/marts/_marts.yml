@@ -33,6 +33,16 @@ models:
       - name: workouts
         data_tests: [not_null]
 
+  - name: fct_coach_workouts
+    description: >
+      Garmin Coach's adaptive plan, one row per scheduled workout: name, pace description,
+      estimated duration, training effect and completion status, as Garmin last reported them.
+    columns:
+      - name: workout_uuid
+        data_tests: [unique, not_null]
+      - name: calendar_date
+        data_tests: [not_null]
+
   - name: fct_workout_reviews
     description: >
       Claude's review of a workout (see the coach source), with the activity it reviews.

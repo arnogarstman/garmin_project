@@ -70,6 +70,7 @@ header{display:grid;gap:12px}
 .logbar select{font:.88rem var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--grid);border-radius:4px;padding:4px 6px;text-transform:capitalize}
 #histlog .livebtn{margin-top:8px}
 .tip{position:fixed;z-index:20;pointer-events:none;background:var(--bg);color:var(--ink);border:1px solid var(--grid);border-radius:6px;padding:6px 10px;box-shadow:0 4px 14px rgba(0,0,0,.12);display:grid;gap:1px;max-width:280px}
+.tip[hidden]{display:none}
 .tip b{font:600 1rem var(--display);font-variant-numeric:tabular-nums}
 .tip span{font-size:.8rem;color:var(--ink2)}
 .panel[hidden]{display:none}
@@ -129,6 +130,8 @@ section>*{min-width:0}
 .prow.race{border-left-color:var(--c3);background:color-mix(in srgb,var(--c3) 8%,transparent)}
 .prow.rest{border-left-color:var(--grid)}
 .prow.past{opacity:.7}
+.gcoach{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;margin-top:6px;padding:4px 8px;border-left:3px solid var(--c3);background:color-mix(in srgb,var(--c3) 7%,transparent);font-size:.86rem}
+.gcoach b{font-weight:600;color:var(--ink)}
 .pd{display:grid;align-content:start;gap:2px;font-size:.8rem;color:var(--ink2)}
 .pd b{font:600 .95rem var(--display);color:var(--ink)}
 @media (max-width:640px){.prow{grid-template-columns:64px minmax(0,1fr)}.prow .why{grid-column:2}}

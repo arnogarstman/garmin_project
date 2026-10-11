@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from garminconnect import GarminConnectConnectionError, GarminConnectNotFoundError
@@ -53,7 +53,7 @@ def test_one_record_per_endpoint_and_day_with_payload_untouched() -> None:
     assert records[n_snapshots].params == {"activity_id": 11}
     assert records[n_snapshots].payload == {"activityId": 11, "activityName": "Run"}
     assert ("get_activities_by_date", ("2026-03-09", "2026-03-10")) in api.calls
-    day_records = records[n_snapshots + 2 :]
+    day_records = [r for r in records if "date" in r.params]
     assert len(day_records) == 2 * len(DAY_ENDPOINTS)
     assert {r.params["date"] for r in day_records} == {"2026-03-09", "2026-03-10"}
     sleep = next(r for r in day_records if r.endpoint == "sleep")
@@ -132,3 +132,39 @@ def test_until_limits_the_window() -> None:
     records = list(_source(api).extract(since=date(2026, 3, 8), until=date(2026, 3, 9)))
     assert {r.params["date"] for r in records if "date" in r.params} == {"2026-03-08", "2026-03-09"}
     assert ("get_activities_by_date", ("2026-03-08", "2026-03-09")) in api.calls
+
+
+class FakeGarminWithCoach(FakeGarmin):
+    """A calendar with weigh-ins and the workouts of one adaptive Coach plan."""
+
+    CALENDAR: ClassVar[dict[str, Any]] = {
+        "calendarItems": [
+            {"itemType": "weight", "trainingPlanId": None},
+            {"itemType": "fbtAdaptiveWorkout", "trainingPlanId": 7, "title": "Basis"},
+            {"itemType": "fbtAdaptiveWorkout", "trainingPlanId": 7, "title": "Sprint"},
+        ]
+    }
+
+    def get_scheduled_workouts(self, year: int, month: int) -> dict[str, Any]:
+        self.calls.append(("get_scheduled_workouts", (year, month)))
+        return self.CALENDAR
+
+
+def test_garmin_coach_plans_named_in_the_calendar_are_fetched() -> None:
+    """The month's calendar is stored, and each adaptive Coach plan it schedules workouts for is
+    fetched once; other calendar items (weigh-ins, activities) name no plan."""
+    api = FakeGarminWithCoach()
+    records = list(_source(api).extract(since=TODAY))
+    coach = [r for r in records if r.endpoint in ("calendar", "adaptive_training_plan")]
+    assert [(r.endpoint, r.params) for r in coach] == [
+        ("calendar", {"year": 2026, "month": 3}),
+        ("adaptive_training_plan", {"plan_id": 7}),
+    ]
+    assert coach[0].payload == FakeGarminWithCoach.CALENDAR
+    assert ("get_adaptive_training_plan_by_id", (7,)) in api.calls
+
+
+def test_no_coach_plan_means_no_plan_call() -> None:
+    api = FakeGarmin()
+    list(_source(api).extract(since=TODAY))
+    assert not [c for c in api.calls if c[0] == "get_adaptive_training_plan_by_id"]
