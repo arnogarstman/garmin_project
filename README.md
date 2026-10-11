@@ -8,55 +8,6 @@ It is a real, daily-used pipeline, built the way I would build one at work: raw 
 append-only, replayable bronze layer, every transformation in tested dbt models, and refreshes that
 run in the cloud within the hour after a workout, without ever logging in with a password.
 
-![The Today tab: status tiles, Claude's review of the latest workout, and the coach's read](docs/images/dashboard-today.png)
-
-*All pictures show a simulated athlete, not personal data.*
-
-## The dashboard
-
-One self-contained page in five tabs. It holds no data itself: opened on claude.ai, it queries the
-marts through the viewer's MotherDuck connector, refreshes every 15 minutes while open, and keeps
-the goals you enter in the artifact's own database.
-
-**Today.** Training status, readiness, VO2 max, resting heart rate, race prediction and weight;
-Claude's review of the latest workout (what the session was, whether it fit your recent load and
-recovery, how it compares with similar runs, and what to do next); and a coach's read on recovery,
-intensity balance, aerobic efficiency, load progression, long runs, endurance, sleep, consistency,
-training paces and next week.
-
-**Training.** A race goal with a race-day projection from the trend in Garmin's predictions and a
-training level (Steady, Balanced or Ambitious: how fast volume grows and how much quality work the
-plan holds); Claude's read on your potential, which suggests a target time and level from your
-fitness and training data and applies them with one click; charts for predictions, volume, VO2 max
-and training load; a week-by-week plan to race day with a reason for every session; and a review
-of last week. When you follow a Garmin Coach plan, the week
-shows two columns per day: this page's session, and Garmin Coach's (workout, duration, pace,
-training effect, done or missed).
-
-![The Training tab: race goal with projection, prediction and volume charts](docs/images/dashboard-training.png)
-
-**Nutrition.** A weight goal and a day-by-day meal plan. The page sets each day's energy and macro
-targets from Garmin's measured burn, the weight trend, today's workout and the planned sessions,
-within fixed limits (at most 0.75% of body weight a week, never under 1,500 kcal or 25% below the
-day's burn). Claude then writes meals for those targets, with macros per meal and totals per day
-and week.
-
-![The Nutrition tab: weight goal, trend and the energy budget per day](docs/images/dashboard-nutrition.png)
-
-**History.** One period filter (3, 6 or 12 months) over everything: summary tiles against the
-period before, running volume per month or week, a heatmap of daily training load, pace per run
-with its trend, resting heart rate, HRV and weight, when you train, run distances, time per
-activity, records, and a filterable activity log.
-
-![The History tab: period filter, summary, volume and training load heatmap](docs/images/dashboard-history.png)
-
-The tab ends with a calendar of runs and weigh-ins: bubbles sized by distance, and each weigh-in
-with its change, green when it moves toward the weight goal.
-
-![The calendar: runs as bubbles, weigh-ins with their change toward the goal](docs/images/dashboard-calendar.png)
-
-**About.** How the pipeline works, and how far behind each metric is.
-
 ## Architecture
 
 ```mermaid
@@ -99,6 +50,66 @@ flowchart LR
 - **Few calls to an unofficial API.** The workout check asks Garmin only during training hours and
   stops once today's workout is in: at most about 100 calls a day.
 
+## The dashboard
+
+![The Today tab: status tiles, Claude's review of the latest workout, and the coach's read](docs/images/dashboard-today.png)
+
+*All pictures show a simulated athlete, not personal data.*
+
+One self-contained page in five tabs. It holds no data itself: opened on claude.ai, it queries the
+marts through the viewer's MotherDuck connector, refreshes every 15 minutes while open, and keeps
+the goals you enter in the artifact's own database.
+
+**Today.** Training status, readiness, VO2 max, resting heart rate, race prediction and weight;
+Claude's review of the latest workout (what the session was, whether it fit your recent load and
+recovery, how it compares with similar runs, and what to do next); and a coach's read on recovery,
+plan adherence, intensity balance, aerobic efficiency, load progression, long runs, endurance,
+sleep, consistency, training paces and next week. Every card says what it rests on (nights, runs or
+weeks of data) and how confident that makes it; a low-confidence card is drawn quieter.
+
+Plan adherence compares the plan with what you ran over the last four weeks: sessions done, key
+sessions hit (80% of a long run, time in zones 4 and 5 for intervals, zones 3 to 5 for threshold),
+planned against run distance, Garmin Coach's workouts done, and the weekday the misses cluster on.
+The page rebuilds its plan from the data on every view, so it keeps the planned session of each of
+the next seven days in the artifact's database, fixed once the day has passed or has a run.
+
+**Training.** A race goal with a race-day projection from the trend in Garmin's predictions and a
+training level (Steady, Balanced or Ambitious: how fast volume grows and how much quality work the
+plan holds); Claude's read on your potential, which suggests a target time and level from your
+fitness and training data and applies them with one click (the plan's own "Recalculate with
+Claude's potential" button asks Claude again when the read is missing or out of date, then rebuilds
+the plan from its target and level); charts for predictions, volume, VO2 max
+and training load; a week-by-week plan to race day with a reason for every session; and a review
+of last week, including planned sessions done. When you follow a Garmin Coach plan, the week
+shows two columns per day: this page's session, and Garmin Coach's (workout, duration, pace,
+training effect, done or missed).
+
+![The Training tab: race goal with projection, prediction and volume charts](docs/images/dashboard-training.png)
+
+**Nutrition.** A weight goal and a day-by-day meal plan. The page sets each day's energy and macro
+targets from Garmin's measured burn, the weight trend, today's workout and the planned sessions,
+within fixed limits (at most 0.75% of body weight a week, never under 1,500 kcal or 25% below the
+day's burn). Claude then writes meals for those targets, with macros per meal and totals per day
+and week.
+
+![The Nutrition tab: weight goal, trend and the energy budget per day](docs/images/dashboard-nutrition.png)
+
+**History.** One period filter (3, 6 or 12 months) over everything: summary tiles against the
+period before, running volume per month or week, a heatmap of daily training load, pace per run
+with its trend, resting heart rate, HRV and weight, when you train, run distances, time per
+activity, records, and a filterable activity log. Events you note (illness, injury, travel) and
+races from the data are marked on the trend charts in both Training and History, so a dip comes
+with its reason.
+
+![The History tab: period filter, summary, volume and training load heatmap](docs/images/dashboard-history.png)
+
+The tab ends with a calendar of runs and weigh-ins: bubbles sized by distance, and each weigh-in
+with its change, green when it moves toward the weight goal.
+
+![The calendar: runs as bubbles, weigh-ins with their change toward the goal](docs/images/dashboard-calendar.png)
+
+**About.** How the pipeline works, and how far behind each metric is.
+
 ## Run it
 
 You need Python 3.12+, [uv](https://docs.astral.sh/uv/) and a Garmin Connect account.
@@ -134,7 +145,10 @@ uv run snapshot --live --out data/snapshot.html
 ```
 
 Publish that file as a claude.ai artifact with the capabilities `mcp` (MotherDuck, tool `query`),
-`db` (rule: `settings` read by viewers, written by editors), `user` and `sample`. New data then
+`db` (rule: `settings` read by viewers, written by editors), `user` and `sample`. The page keeps
+its state under `settings/`: the race goal (`race`), Claude's read on your potential (`potential`),
+the weight goal (`weight`), the last meal plan (`mealplan`), the planned session per day
+(`planlog`) and your events (`events`). New data then
 appears without republishing; republish only when the page's code changes.
 
 ## Scheduled refresh

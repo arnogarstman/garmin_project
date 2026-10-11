@@ -84,9 +84,11 @@ function renderPotential(D, ctx) {
   if (apply) apply.onclick = applyPotential;
 }
 
+// Ask Claude for a new read; true once there is one to use.
 async function makePotential() {
   const input = pot.input;
-  if (!input || !pot.sample) return;
+  if (!input || !pot.sample || pot.busy) return false;
+  let ok = false;
   pot.ctl = new AbortController();
   pot.error = '';
   pot.busy = 'Claude is reading your data. This usually takes under a minute.';
@@ -96,6 +98,7 @@ async function makePotential() {
     if (typeof result?.target !== 'string' || !parseTarget(result.target, input.distance) || !LEVELS[result.level]) throw { code: 'invalid_json' };
     const doc = { generated_at: new Date().toISOString(), key: input.key, result };
     pot.saved = doc;
+    ok = true;
     try { await pot.ref.set(doc); } catch { pot.error = 'The assessment could not be saved; it is shown until you leave the page.'; }
   } catch (e) {
     pot.error = {
@@ -110,18 +113,46 @@ async function makePotential() {
     pot.busy = null;
     rerender();
   }
+  return ok;
 }
 
 // Put the target and level in the race goal; the plan and projection follow on the next render.
 async function applyPotential() {
   const r = pot.saved?.result;
   if (!r || !pageGoal || !pot.raceRef) return;
+  if (pageGoal.target === r.target && (pageGoal.level || 'balanced') === r.level) return;
   try {
     await pot.raceRef.set({ ...pageGoal, target: r.target, level: r.level, updated_at: new Date().toISOString() });
   } catch {
     pot.error = 'The race goal could not be updated; try again in a moment.';
     rerender();
   }
+}
+
+// The training plan's line on Claude's read: whether the plan follows it, and one button that
+// recalculates the plan from it. With no read, or one the data has moved past, the button asks
+// Claude first; then it puts the target and level in the race goal, which rebuilds the plan.
+function potentialPlanLine(ctx) {
+  const input = lastD && potentialInput(lastD, ctx);
+  if (!input) return '';
+  const saved = pot.saved, r = saved?.result, G = ctx.G;
+  const current = !!r && saved.key === input.key, applied = !!r && G.target === r.target && (G.level || 'balanced') === r.level;
+  const lv = r && (LEVELS[r.level]?.label || r.level).toLowerCase(), when = r && fmtDate(saved.generated_at);
+  const state = !r ? 'Claude has not assessed your potential yet.'
+    : applied ? `The plan follows Claude's read of ${when}: ${esc(r.target)} at the ${esc(lv)} level${current ? '.' : ', from before your latest data.'}`
+      : `Claude's read of ${when} suggests ${esc(r.target)} at the ${esc(lv)} level${current ? '' : ' (out of date)'}; the plan does not use it yet.`;
+  const can = pot.sample && pot.canWrite;
+  const [mode, label] = !r || !current ? ['fresh', 'Recalculate with Claude\'s potential'] : !applied ? ['apply', 'Recalculate with Claude\'s target and level'] : ['fresh', 'Ask Claude again and recalculate'];
+  const action = pot.busy ? `<span class="cap" role="status">${esc(pot.busy)}</span>`
+    : can ? `<button type="button" class="livebtn${applied && current ? '' : ' primary'}" id="plan-recalc" data-mode="${mode}">${label}</button>` : '';
+  return `<div class="planpot"><p class="cap">${state}</p>${action}${pot.error && !pot.busy ? `<p class="mmsg">${esc(pot.error)}</p>` : ''}</div>`;
+}
+
+async function recalcFromPotential(e) {
+  const mode = e?.currentTarget?.dataset.mode;
+  if (pot.busy) return;
+  if (mode === 'fresh' && !(await makePotential())) return;
+  await applyPotential();
 }
 
 async function startPotential() {
