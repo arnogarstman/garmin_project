@@ -28,7 +28,6 @@ flowchart LR
     M --> D[Streamlit dashboard]
     M --> P[Snapshot page]
     D -->|AI insights| C
-    W[Strava webhook] -.starts a refresh.-> O
     O{{Dagster}} -.orchestrates.-> R & ST & M
 ```
 
@@ -95,44 +94,9 @@ When the run fails with "No working Garmin session": run the two `garmin-tokens`
 
 If Garmin starts refusing GitHub's IP addresses, run the same workflow on a machine at home: [add a self-hosted runner](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners) (it needs uv and the GitHub CLI) and set the repository variable `REFRESH_RUNNER` to `self-hosted`. GitHub keeps scheduling, logging and alerting; only the Garmin calls come from your own connection.
 
-### Refresh after a workout
+### Workout reviews
 
-Garmin has no webhooks for personal accounts, but Strava does, and a Garmin watch can sync every activity to Strava. A small Cloudflare Worker ([`webhook/strava.js`](webhook/strava.js)) receives Strava's "new activity" event and starts the refresh workflow through `workflow_dispatch`. The run ingests the workout from Garmin as usual, then the coach source asks Claude to review it, and the review lands in `marts.fct_workout_reviews` and on the page a few minutes after the watch syncs. The morning run reviews whatever a webhook missed: every workout of the last 7 days without a review, at most 5 per run.
-
-Strava only provides the trigger; all data still comes from Garmin.
-
-One-time setup:
-
-1. **Anthropic key.** Add `ANTHROPIC_API_KEY` as a repository secret. Without it, runs skip the reviews.
-2. **Strava API app.** In Garmin Connect, connect Strava under *Settings > Connected Apps* so every workout reaches Strava. Create an app at [strava.com/settings/api](https://www.strava.com/settings/api) (any name and website; *Authorization Callback Domain* `localhost`) and note its client id and secret. Strava only sends events about athletes who authorized the app, so authorize it once yourself: open `https://www.strava.com/oauth/authorize?client_id=<id>&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=activity:read_all`, approve, copy the `code` from the address of the page that fails to load, and exchange it:
-
-   ```sh
-   curl -sS -X POST https://www.strava.com/oauth/token -F client_id=... -F client_secret=... \
-     -F code=... -F grant_type=authorization_code | python3 -c "import json,sys; print(json.load(sys.stdin)['athlete']['id'])"
-   ```
-
-   That prints your athlete id. The tokens themselves are not needed: the webhook carries the activity id, and the data comes from Garmin.
-3. **GitHub token for the Worker.** A [fine-grained personal access token](https://github.com/settings/personal-access-tokens) for this repository only, with *Actions: Read and write*. That lets it start workflows and nothing else.
-4. **Deploy the Worker** (needs a free Cloudflare account; `wrangler` asks you to log in):
-
-   ```sh
-   cd webhook
-   npx wrangler deploy                                # prints https://garminreader-strava.<you>.workers.dev
-   openssl rand -hex 16                               # a verify token, used below and in step 5
-   npx wrangler secret put STRAVA_VERIFY_TOKEN
-   npx wrangler secret put STRAVA_ATHLETE_ID
-   npx wrangler secret put GITHUB_TOKEN
-   ```
-
-5. **Subscribe to Strava's events**, which also checks that the Worker answers:
-
-   ```sh
-   STRAVA_CLIENT_ID=... STRAVA_CLIENT_SECRET=... STRAVA_VERIFY_TOKEN=... \
-     ./subscribe.sh https://garminreader-strava.<you>.workers.dev/strava   # prints {"id": 123456}
-   npx wrangler secret put STRAVA_SUBSCRIPTION_ID                          # that id
-   ```
-
-Strava does not sign its events, so the Worker only accepts events that name your athlete id and your subscription id. A forged event can at most start one extra run, which finds nothing new. `npx wrangler tail` shows the Worker's log; the refresh runs it starts are named after the Strava activity in the Actions tab.
+Each refresh, the coach source asks Claude to review every workout of the last 7 days without a review (at most 5 per run), against the training and recovery before it. The review lands in `marts.fct_workout_reviews` and on top of the page. Add `ANTHROPIC_API_KEY` as a repository secret to switch it on; without it, runs skip the reviews.
 
 To review workouts by hand, for example after changing the prompt in [`review.py`](src/garminreader/ingest/sources/coach/review.py): `uv run ingest coach [--since YYYY-MM-DD]`, then `uv run transform`.
 
@@ -158,7 +122,6 @@ src/garminreader/
   config.py        every setting, from .env
   db.py            connections to the local file or MotherDuck
 transform/         dbt project: staging/ and marts/
-webhook/           Strava webhook receiver (Cloudflare Worker) that starts a refresh
 .github/workflows/ CI and the refresh
 ```
 

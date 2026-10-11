@@ -27,7 +27,6 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 
 - `src/garminreader/ingest/`: sources (`sources/<name>/`), registry in `sources/__init__.py`, raw store in `storage.py`. The `coach` source reads the marts and stores Claude's review of each new workout as raw payloads (`endpoint = 'workout_review'`), modelled in `staging/coach/` and `marts.fct_workout_reviews`; Dagster runs dbt in two steps around it. Raw data is the `raw.payloads` table (JSON payload and params plus load metadata) with the `raw.loads` run log, written in one transaction per load.
 - `src/garminreader/claude.py`: the only Claude API client (workout reviews and the dashboard's AI features).
-- `webhook/`: Cloudflare Worker that receives Strava's new-activity webhook and starts `refresh.yml` through `workflow_dispatch` (see "Refresh after a workout" in the README).
 - `src/garminreader/db.py`: the only way to open the database (`DATABASE` in config): a local DuckDB file, or MotherDuck as `md:<name>` with `MOTHERDUCK_TOKEN`.
 - `transform/`: dbt project. `staging/<source>/` tables (newest load wins), `marts/` tables (`fct_*`, `rpt_*`).
 - `src/garminreader/orchestration/`: Dagster assets (raw partitioned by day, dbt via dagster-dbt) and checks.
