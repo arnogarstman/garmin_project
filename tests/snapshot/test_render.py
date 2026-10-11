@@ -13,11 +13,11 @@ def _script_value(html: str, name: str) -> object:
 
 def test_payload_cannot_close_the_script_element() -> None:
     """Text from the warehouse (an activity name) must not end the inline <script> early."""
-    html = render.render({"recent": [{"activity_name": "</script><b>x</b>"}]})
+    html = render.render({"history": [{"name": "</script><b>x</b>"}]})
     assert "</script><b>" not in html
     payload = _script_value(html, "__SNAPSHOT__")
     assert isinstance(payload, dict)
-    assert payload["recent"][0]["activity_name"] == "</script><b>x</b>"
+    assert payload["history"][0]["name"] == "</script><b>x</b>"
 
 
 def test_template_markers_are_all_filled() -> None:
@@ -55,8 +55,11 @@ MARTS = {
                current_date - i::int as activity_date, 'Run ' || i as activity_name, 'running' as activity_type,
                5.0 + i as distance_km, 30.0 as duration_min, 6.0 as pace_min_per_km, 150.0 as avg_hr,
                50.0 as training_load, 1.0 as hr_zone_1_min, 2.0 as hr_zone_2_min, 3.0 as hr_zone_3_min,
-               4.0 as hr_zone_4_min, 5.0 as hr_zone_5_min
+               4.0 as hr_zone_4_min, 5.0 as hr_zone_5_min, 20.0 as elevation_gain_m
         from range(10) t(i)""",
+    "fct_daily_body": """
+        select current_date - i::int as calendar_date, 80.0 - i / 10 as weight_kg
+        from range(5) t(i)""",
     "fct_race_predictions": """
         select current_date - i::int as calendar_date, 1500 as predicted_5k_s, 3100 as predicted_10k_s,
                6800 as predicted_half_marathon_s, 14400 as predicted_marathon_s
@@ -95,7 +98,7 @@ def test_live_queries_return_the_snapshot_payload(tmp_path: Path) -> None:
         assert data._rows(con, sql) == data._rows(con, data.QUERIES[key].format(days=30)), key
     for key in data.SINGLE_ROW:
         assert len(data._rows(con, queries[key])) <= 1, key
-    assert [r["activity_name"] for r in data._rows(con, queries["recent"])] == [f"Run {i}" for i in range(8)]
+    assert [r["name"] for r in data._rows(con, queries["history"])] == [f"Run {i}" for i in reversed(range(10))]
     assert [r["activity_name"] for r in data._rows(con, queries["runs"])] == [f"Run {i}" for i in reversed(range(10))]
 
 

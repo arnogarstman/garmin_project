@@ -125,18 +125,39 @@ function mealPlanHtml() {
   if (!p) return `${err}<p class="cap">${can ? 'Claude writes meals for the targets above, around your training and diet. It takes about a minute.' : meals.sample === null ? 'Open the page on claude.ai to have Claude write the meals.' : 'No meal plan yet.'}</p>${button}`;
 
   const target = new Map((p.basis || []).map(d => [d.date, d]));
-  const cards = days.map(d => {
+  // Energy and macros of a list of meals, as Claude gave them per meal.
+  const MACROS = [['kcal', 'kcal', 'kcal', ''], ['protein_g', 'protein', 'P', ' g'], ['carbs_g', 'carbs', 'C', ' g'], ['fat_g', 'fat', 'F', ' g']];
+  const sum = list => Object.fromEntries(MACROS.map(([k]) => [k, list.reduce((s, m) => s + (num(m[k]) ? m[k] : 0), 0)]));
+  const fmt = (k, v) => k === 'kcal' ? kcalFmt(v) : Math.round(v);
+  const macroLine = m => MACROS.filter(([k]) => num(m[k])).map(([k, , short, unit]) => `<span>${k === 'kcal' ? `${fmt(k, m[k])} kcal` : `${short} ${fmt(k, m[k])}${unit}`}</span>`).join('');
+  // Totals against the targets: each cell "eaten / target", the target key named as in the budget.
+  const totalsTable = (rows, label) => `<table class="mtot"><thead><tr><th>${label}</th>${MACROS.map(([, name]) => `<th class="n">${name}</th>`).join('')}</tr></thead><tbody>${
+    rows.map(([name, tot, tg]) => `<tr><td>${name}</td>${MACROS.map(([k, , , unit]) => {
+      const goal = tg && tg[k === 'kcal' ? 'kcal' : k.replace('_g', '')];
+      return `<td class="n"><b>${fmt(k, tot[k])}${unit}</b>${num(goal) ? `<i> / ${fmt(k, goal)}${unit}</i>` : ''}</td>`;
+    }).join('')}</tr>`).join('')
+  }</tbody></table>`;
+  // A day's totals in a card: one small block per value, "eaten" over "of target".
+  const totalsBlock = (tot, tg) => `<div class="mdtot">${MACROS.map(([k, name, , unit]) => {
+    const goal = tg && tg[k === 'kcal' ? 'kcal' : k.replace('_g', '')];
+    return `<div><span class="eyebrow">${name}</span><b>${fmt(k, tot[k])}${unit}</b>${num(goal) ? `<i>of ${fmt(k, goal)}${unit}</i>` : ''}</div>`;
+  }).join('')}</div>`;
+  const dayTotals = days.map(d => sum(Array.isArray(d.meals) ? d.meals : []));
+  const cards = days.map((d, i) => {
     const list = Array.isArray(d.meals) ? d.meals : [], tg = target.get(d.date);
-    const total = list.reduce((s, m) => s + (num(m.kcal) ? m.kcal : 0), 0);
-    return `<div class="mday"><div class="head"><h3>${dayName(d.date)} ${fmtDate(d.date)}</h3><span class="eyebrow">${tg ? esc(tg.title) : ''}</span></div>` +
-      `<p class="tot">${kcalFmt(total)} kcal${tg ? ` of ${kcalFmt(tg.kcal)} · protein ${list.reduce((s, m) => s + (num(m.protein_g) ? m.protein_g : 0), 0)} of ${tg.protein} g` : ''}</p><ul>${
-        list.map(m => `<li><span class="eyebrow">${esc(m.meal)}${num(m.kcal) ? ` · ${Math.round(m.kcal)} kcal` : ''}</span><b>${esc(m.dish)}</b><span>${esc(m.portion)}</span></li>`).join('')
-      }</ul>${d.note ? `<p>${esc(d.note)}</p>` : ''}</div>`;
+    return `<div class="mday"><div class="head"><h3>${dayName(d.date)} ${fmtDate(d.date)}</h3><span class="eyebrow">${tg ? esc(tg.title) : ''}</span></div><ul>${
+        list.map(m => `<li><span class="eyebrow">${esc(m.meal)}</span><b>${esc(m.dish)}</b><span class="portion">${esc(m.portion)}</span><span class="macros">${macroLine(m)}</span></li>`).join('')
+      }</ul><span class="eyebrow">Day total</span>${totalsBlock(dayTotals[i], tg)}${d.note ? `<p>${esc(d.note)}</p>` : ''}</div>`;
   }).join('');
+  // The week: every shown day added up, against the same days' targets.
+  const weekTot = Object.fromEntries(MACROS.map(([k]) => [k, dayTotals.reduce((s, t) => s + t[k], 0)]));
+  const tgs = days.map(d => target.get(d.date)).filter(Boolean);
+  const weekTg = tgs.length === days.length ? Object.fromEntries(['kcal', 'protein', 'carbs', 'fat'].map(k => [k, tgs.reduce((s, t) => s + t[k], 0)])) : null;
+  const week = days.length ? `<div class="mweek"><h3>${days.length === 1 ? 'Total' : `Total over ${days.length} days`}</h3>${totalsTable([[`${days.length} day${days.length === 1 ? '' : 's'}`, weekTot, weekTg], ['Per day', Object.fromEntries(MACROS.map(([k]) => [k, weekTot[k] / days.length])), weekTg && Object.fromEntries(Object.entries(weekTg).map(([k, v]) => [k, v / days.length]))]], 'Eaten / target')}</div>` : '';
   const shop = Array.isArray(p.plan.shopping_list) && p.plan.shopping_list.length ? `<details class="mshop"><summary>Shopping list</summary><ul>${p.plan.shopping_list.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '';
   const tips = Array.isArray(p.plan.tips) && p.plan.tips.length ? `<div class="notes"><h3>Tips</h3><ul>${p.plan.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
   const head = `<p class="cap">Made ${fmtDate(p.generated_at)} at ${new Date(p.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${stale ? `. <span class="pill warn">out of date</span> ${days.length ? 'the goal changed since' : 'its days are over'}; make a new plan for the targets above.` : '.'}</p>`;
-  return `${err}${head}${button}${days.length ? `<div class="mdays">${cards}</div>` : ''}${shop}${tips}`;
+  return `${err}${head}${button}${week}${days.length ? `<div class="mdays">${cards}</div>` : ''}${shop}${tips}`;
 }
 
 function bindMealButtons() {

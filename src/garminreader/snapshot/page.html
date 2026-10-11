@@ -30,7 +30,51 @@ p{margin:0;max-width:66ch;color:var(--ink2)}
 header{display:grid;gap:12px}
 .demo{display:inline-flex;gap:8px;align-items:center;font:500 .75rem var(--mono);color:var(--ink2);border:1px solid var(--grid);border-radius:999px;padding:3px 10px;width:max-content;max-width:100%}
 .demo i{width:8px;height:8px;border-radius:50%;background:var(--c3);display:block}
-section{display:grid;gap:16px}
+.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;overflow-x:auto;background:var(--bg);border-bottom:1px solid var(--grid);margin-block:-16px;padding-top:8px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:600 1rem var(--display);color:var(--ink2);background:none;border:0;border-bottom:3px solid transparent;padding:8px 14px 9px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--c1)}
+.tabs button:hover{color:var(--ink)}
+.tabs button:focus-visible{outline:2px solid var(--c1);outline-offset:-2px}
+.panel{display:grid;gap:40px;min-width:0}
+.histfilter{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:-16px}
+.seg{display:inline-flex;border:1px solid var(--grid);border-radius:6px;overflow:hidden}
+.seg button{font:500 .85rem var(--body);color:var(--ink2);background:var(--bg);border:0;padding:6px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--grid)}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--ink);font-weight:600}
+.seg button:focus-visible{outline:2px solid var(--c1);outline-offset:-2px}
+.tile .delta{font-size:.82rem;color:var(--ink2)}
+.tile .v{font-variant-numeric:normal}
+#records .tiles,#histkpis .tiles{background:none;border:0;gap:12px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+#records .tile,#histkpis .tile{border:1px solid var(--grid)}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px 28px}
+.grid3 .chart{min-width:0}
+.heatlegend{display:flex;align-items:center;gap:3px;font-size:.78rem;color:var(--ink2)}
+.heatlegend i{width:12px;height:12px;border-radius:2px;display:block}
+.heatlegend span:first-child{margin-right:4px}.heatlegend span:last-child{margin-left:4px}
+.mark{cursor:default;outline:none}
+.mark:hover,.mark:focus-visible{stroke:var(--ink);stroke-width:1.5}
+.hbars{display:grid;gap:10px}
+.hbar{display:grid;grid-template-columns:minmax(70px,auto) 1fr auto;gap:10px;align-items:center;font-size:.88rem;outline:none}
+.hbar .n{color:var(--ink2);text-transform:capitalize}
+.hbar .track{height:14px;display:block}
+.hbar .track i{display:block;height:100%;background:var(--c1);border-radius:0 4px 4px 0;min-width:2px}
+.hbar .v{font-variant-numeric:tabular-nums}
+.hbar:focus-visible{outline:2px solid var(--c1);outline-offset:2px}
+.tview summary,.calbox summary{cursor:pointer;font-size:.85rem;color:var(--ink2)}
+.tview .tbl{margin-top:8px;max-height:280px;overflow:auto}
+.calbox{display:grid;gap:12px}
+.calbox summary{font:600 1rem var(--display);color:var(--ink)}
+.logbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-bottom:8px}
+.logbar label{font-size:.85rem;color:var(--ink2);display:flex;gap:6px;align-items:center}
+.logbar select{font:.88rem var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--grid);border-radius:4px;padding:4px 6px;text-transform:capitalize}
+#histlog .livebtn{margin-top:8px}
+.tip{position:fixed;z-index:20;pointer-events:none;background:var(--bg);color:var(--ink);border:1px solid var(--grid);border-radius:6px;padding:6px 10px;box-shadow:0 4px 14px rgba(0,0,0,.12);display:grid;gap:1px;max-width:280px}
+.tip b{font:600 1rem var(--display);font-variant-numeric:tabular-nums}
+.tip span{font-size:.8rem;color:var(--ink2)}
+.panel[hidden]{display:none}
+section{display:grid;gap:16px;min-width:0}
+section>*{min-width:0}
 .sechead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;border-bottom:1px solid var(--grid);padding-bottom:8px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--grid);border:1px solid var(--grid)}
 .tile{background:var(--bg);padding:14px 16px;display:grid;gap:2px;align-content:start}
@@ -117,17 +161,31 @@ section{display:grid;gap:16px}
 #mealstats .tile .v{font-size:1.6rem}
 #mealbudget{display:grid;gap:8px}
 .mealplan{display:grid;gap:12px;justify-items:start}
+.mealplan,.mealplan>*,#mealbudget,#mealbudget>*{min-width:0}
 .mealplan>*{justify-self:stretch}
 .mealplan>.livebtn{justify-self:start}
 .mmsg{font-size:.88rem;color:var(--warn)}
 .mdays{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
 .mday{border:1px solid var(--grid);border-top:3px solid var(--c2);padding:12px 14px;display:grid;gap:8px;align-content:start;min-width:0}
 .mday .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 8px}
-.mday .tot{font:500 .78rem var(--mono);color:var(--ink2)}
+.mday .macros{display:flex;flex-wrap:wrap;gap:2px 10px;font:500 .72rem var(--mono);color:var(--ink2)}
+.mdtot{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--grid);border:1px solid var(--grid);margin-top:-4px}
+.mdtot div{background:var(--bg);padding:6px 8px;display:grid;min-width:0}
+.mdtot b{font:600 .95rem var(--display);font-variant-numeric:tabular-nums}
+.mdtot i{font:normal .72rem var(--mono);color:var(--muted)}
+.mday .head{min-width:0}
+.mday .head .eyebrow{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.mtot{font-size:.8rem}
+.mtot th,.mtot td{padding:4px 6px}
+.mtot th:first-child,.mtot td:first-child{padding-left:0}
+.mtot td i{font-style:normal;color:var(--muted)}
+.mtot td b{font-weight:600}
+.mweek{border:1px solid var(--grid);padding:12px 14px;display:grid;gap:6px;overflow-x:auto}
+.mweek .mtot{font-size:.88rem}
 .mday ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
 .mday li{display:grid;gap:1px;font-size:.9rem}
 .mday li b{font-weight:600}
-.mday li span:last-child{color:var(--ink2);font-size:.84rem}
+.mday li .portion{color:var(--ink2);font-size:.84rem}
 .mday p{font-size:.86rem}
 .mshop{border:1px solid var(--grid);padding:10px 14px}
 .mshop summary{cursor:pointer;font:600 1rem var(--display)}
@@ -179,6 +237,12 @@ footer{font-size:.8rem;color:var(--muted)}
 .day .run{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;max-width:100%}
 .day .km{font:600 .9rem/1.1 var(--display);font-variant-numeric:tabular-nums;color:var(--ink)}
 .day .km small{font-size:.7rem;color:var(--ink2);font-weight:500;margin-left:2px}
+.day .wt{align-self:flex-end;margin-top:auto;display:flex;gap:4px;align-items:baseline;font:500 .68rem var(--mono);color:var(--ink2);font-variant-numeric:tabular-nums}
+.wt i,.mhead .tot i{font-style:normal}
+.wt i.good,.mhead .tot i.good{color:var(--good)}.wt i.warn,.mhead .tot i.warn{color:var(--warn)}.wt i.flat,.mhead .tot i.flat{color:var(--muted)}
+.wkey{display:inline-flex;gap:8px;align-items:baseline}
+.wkey .wt{border:1px solid var(--grid);border-radius:4px;padding:1px 5px}
+@media (max-width:640px){.day .wt{font-size:.56rem;flex-direction:column;gap:0;align-items:flex-end}}
 .day .nm{font-size:.7rem;line-height:1.2;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 @media (max-width:640px){.cal{--k:7.4px}.day{min-height:66px;padding:2px}.day .runs{gap:2px}.day .nm{display:none}.day .km{font-size:.72rem}.day .km small{display:none}.mgrid .dow{padding:0;text-align:center}.mhead{padding-top:12px}.mhead h3{font-size:.9rem}.mhead .tot{font-size:.62rem}}
 .livestate{font-size:.88rem;border-left:3px solid var(--c1);padding:4px 10px}
@@ -194,6 +258,9 @@ footer{font-size:.8rem;color:var(--muted)}
   <p class="livestate" id="livestate" role="status" hidden></p><button class="livebtn" id="livebtn" type="button" hidden>Run the query</button>
 </header>
 
+<nav class="tabs" role="tablist" aria-label="Sections"><button type="button" role="tab" id="tab-today" aria-controls="panel-today" data-tab="today">Today</button><button type="button" role="tab" id="tab-training" aria-controls="panel-training" data-tab="training">Training</button><button type="button" role="tab" id="tab-nutrition" aria-controls="panel-nutrition" data-tab="nutrition">Nutrition</button><button type="button" role="tab" id="tab-history" aria-controls="panel-history" data-tab="history">History</button><button type="button" role="tab" id="tab-about" aria-controls="panel-about" data-tab="about">About</button></nav>
+
+<div class="panel" role="tabpanel" id="panel-today" aria-labelledby="tab-today">
 <section>
   <div class="sechead"><h2>Today</h2><span class="eyebrow">marts.rpt_current_status</span></div>
   <div class="tiles" id="tiles"></div>
@@ -205,15 +272,12 @@ footer{font-size:.8rem;color:var(--muted)}
 </section>
 
 <section>
-  <div class="sechead"><h2>Week in review</h2><span class="eyebrow">Last full week, Monday to Sunday</span></div>
-  <div class="review" id="review"></div>
-</section>
-
-<section>
   <div class="sechead"><h2>Coach's read</h2><span class="eyebrow">Recovery · training · planning</span></div>
   <div class="coach" id="coach"></div>
 </section>
+</div>
 
+<div class="panel" role="tabpanel" id="panel-training" aria-labelledby="tab-training">
 <section>
   <div class="sechead"><h2>Toward the goal</h2><span class="eyebrow" id="goaleb"></span></div>
   <div class="racebox"><div id="race"></div><div id="goalform" class="goalform"></div></div>
@@ -254,24 +318,86 @@ footer{font-size:.8rem;color:var(--muted)}
 </section>
 
 <section>
+  <div class="sechead"><h2>Week in review</h2><span class="eyebrow">Last full week, Monday to Sunday</span></div>
+  <div class="review" id="review"></div>
+</section>
+</div>
+
+<div class="panel" role="tabpanel" id="panel-nutrition" aria-labelledby="tab-nutrition">
+<section>
   <div class="sechead"><h2>Meal plan</h2><span class="eyebrow">Weight goal · marts.fct_daily_energy</span></div>
   <div id="mealstats"></div>
   <div id="weightform" class="goalform"></div>
   <div id="mealbudget"></div>
   <div class="mealplan" id="mealplan"></div>
 </section>
+</div>
+
+<div class="panel" role="tabpanel" id="panel-history" aria-labelledby="tab-history">
+<div class="histfilter" id="histfilter"></div>
 
 <section>
-  <div class="sechead"><h2>Run calendar</h2><span class="eyebrow">marts.fct_activities</span></div>
-  <div class="calkeys cal" id="calkeys"></div>
+  <div class="sechead"><h2>Summary</h2><span class="eyebrow">marts.fct_activities</span></div>
+  <div id="histkpis"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Volume</h2><span class="eyebrow">Running distance · training load</span></div>
+  <div class="chart">
+    <h3 id="vol-title">Running per month</h3>
+    <div id="ch-vol"></div>
+    <div class="cap" id="cap-vol"></div>
+    <details class="tview"><summary>Show as a table</summary><div class="tbl" id="tbl-vol"></div></details>
+  </div>
+  <div class="chart">
+    <h3>Training load per day</h3>
+    <div id="ch-heat"></div>
+    <div class="heatlegend" id="heat-legend"></div>
+    <div class="cap" id="cap-heat"></div>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Fitness</h2><span class="eyebrow">Pace · recovery · body</span></div>
+  <div class="chart">
+    <h3>Pace per run</h3>
+    <div class="legend"><span><b style="background:var(--c1);height:8px;width:8px;border-radius:50%;opacity:.6"></b>A run (bigger is longer)</span><span><b style="background:var(--ink)"></b>Typical pace, 4-week median</span></div>
+    <div id="ch-pace"></div>
+    <div class="cap" id="cap-pace"></div>
+  </div>
+  <div class="grid3">
+    <div class="chart"><h3>Resting heart rate</h3><div id="ch-rhr"></div></div>
+    <div class="chart"><h3>HRV</h3><div id="ch-hrv"></div></div>
+    <div class="chart"><h3>Weight</h3><div id="ch-weight"></div></div>
+  </div>
+  <p class="cap">Weekly averages; lower resting heart rate and higher HRV usually mean better recovery and fitness.</p>
+</section>
+
+<section>
+  <div class="sechead"><h2>Habits</h2><span class="eyebrow">When · how far · what</span></div>
+  <div class="grid3 habits">
+    <div class="chart"><h3>When you train</h3><div id="ch-when"></div><div class="cap" id="cap-when"></div></div>
+    <div class="chart"><h3>Run distances</h3><div id="ch-dist"></div><div class="cap" id="cap-dist"></div></div>
+    <div class="chart"><h3>Time per activity</h3><div id="ch-mix"></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Records</h2><span class="eyebrow">In the selected period</span></div>
+  <div id="records"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Activity log</h2><span class="eyebrow">Every activity in the period</span></div>
+  <div id="histlog"></div>
+  <details class="calbox" open><summary>Calendar: runs and weight, day by day</summary>
+    <div class="calkeys cal" id="calkeys"></div>
   <div class="cal" id="cal"></div>
+</details>
 </section>
+</div>
 
-<section>
-  <div class="sechead"><h2>Recent activities</h2><span class="eyebrow">marts.fct_activities</span></div>
-  <div class="tbl"><table id="recent"><thead><tr><th>Date</th><th>Activity</th><th class="n">Distance</th><th class="n">Time</th><th class="n">Pace</th><th class="n">Avg HR</th></tr></thead><tbody></tbody></table></div>
-</section>
-
+<div class="panel" role="tabpanel" id="panel-about" aria-labelledby="tab-about">
 <section>
   <div class="sechead"><h2>How it works</h2><span class="eyebrow">src/garminreader · transform/</span></div>
   <div class="flow">
@@ -294,6 +420,7 @@ footer{font-size:.8rem;color:var(--muted)}
   <div class="sechead"><h2>Data health</h2><span class="eyebrow">marts.rpt_metric_lag</span></div>
   <div class="health" id="health"></div>
 </section>
+</div>
 
 <footer id="footer"></footer>
 </div>
