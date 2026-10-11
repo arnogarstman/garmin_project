@@ -27,6 +27,7 @@ pipeline = "garminreader.orchestration.cli:main"
 snapshot = "garminreader.snapshot.cli:main"
 doctor = "garminreader.doctor:main"
 garmin-tokens = "garminreader.ingest.sources.garmin.tokens:main"
+workout-check = "garminreader.ingest.sources.garmin.workout_check:main"
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13"]
