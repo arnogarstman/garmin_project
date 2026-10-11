@@ -158,7 +158,8 @@ function upcomingSessions(n = 7) {
 }
 
 // Garmin Coach's workouts for a day (marts.fct_coach_workouts), shown beside the page's own session.
-const coachOn = date => (lastD?.coach || []).filter(c => String(c.d).slice(0, 10) === date && !c.rest);
+// A Coach rest day comes as a workout without a name (training effect INVALID): not shown.
+const coachOn = date => (lastD?.coach || []).filter(c => String(c.d).slice(0, 10) === date && !c.rest && c.name);
 function coachLine(date, past) {
   return coachOn(date).map(c => {
     const done = /COMPLETE/.test(c.status || '') && !/NOT/.test(c.status || '');
