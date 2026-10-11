@@ -1,10 +1,11 @@
 name: refresh
-run-name: ${{ github.event.schedule == '*/15 4-21 * * *' && 'Workout check' || github.event_name == 'schedule' && 'Daily refresh' || 'Refresh' }}
+run-name: ${{ github.event.schedule == '*/30 4-20 * * *' && 'Workout check' || github.event_name == 'schedule' && 'Daily refresh' || 'Refresh' }}
 
 # The data refresh: Garmin Connect into MotherDuck, Claude's review of each new workout, then every
-# dbt model, test and check. Runs in full every morning; through the day a check every 15 minutes
+# dbt model, test and check. Runs in full every morning; through the day a check every 30 minutes
 # asks Garmin for the newest activity and runs the refresh only when the warehouse lacks it, so a
-# workout is in the warehouse, reviewed, within about half an hour of the watch syncing.
+# workout is in the warehouse, reviewed, within about 45 minutes of the watch syncing. Once today's
+# workout is in, the checks stop asking Garmin until the next day.
 # Garmin is only reached with the saved session (GARMIN_TOKENS), never with a password login,
 # and a session Garmin refreshes during the run is written back to the secret for the next run.
 # See "Scheduled refresh" in the README for the secrets and the yearly token renewal.
@@ -14,9 +15,10 @@ on:
     # 04:17 UTC: 06:17 in Amsterdam in summer, 05:17 in winter. Off the hour, when GitHub's
     # scheduler is least busy.
     - cron: "17 4 * * *"
-    # The workout check: every 15 minutes, 06:00 to 23:45 in Amsterdam in summer (05:00 to 22:45
-    # in winter). Keep this string equal to the one in the run-name and the check step.
-    - cron: "*/15 4-21 * * *"
+    # The workout check: every 30 minutes from 04:00 to 20:30 UTC, which covers 06:00 to 22:00 in
+    # Amsterdam in summer and winter; the check itself skips the hours outside that (see
+    # workout_check.py). Keep this string equal to the one in the run-name and the check step.
+    - cron: "*/30 4-20 * * *"
   workflow_dispatch:
     inputs:
       partition:
@@ -80,7 +82,7 @@ jobs:
       # below run when it found a new workout, and always on the daily or a manual run.
       - name: Look for a new workout
         id: check
-        if: github.event.schedule == '*/15 4-21 * * *'
+        if: github.event.schedule == '*/30 4-20 * * *'
         run: uv run workout-check >> "$GITHUB_OUTPUT"
 
       # Every connection (Garmin with the saved session, MotherDuck, dbt) in one overview,
