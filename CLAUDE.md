@@ -26,7 +26,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 ## Layout
 
 - `src/garminreader/ingest/`: sources (`sources/<name>/`), registry in `sources/__init__.py`, raw store in `storage.py`. The `coach` source reads the marts and stores Claude's review of each new workout as raw payloads (`endpoint = 'workout_review'`), modelled in `staging/coach/` and `marts.fct_workout_reviews`; Dagster runs dbt in two steps around it. Raw data is the `raw.payloads` table (JSON payload and params plus load metadata) with the `raw.loads` run log, written in one transaction per load.
-- Garmin Coach: the Garmin source also stores the month's calendar and each adaptive Coach plan it names (`calendar`, `adaptive_training_plan`); `marts.fct_coach_workouts` holds Coach's workouts (Garmin shares the current week), shown beside each day of the page's training plan.
+- Garmin Coach: the Garmin source also stores the month's calendar and each adaptive Coach plan it names (`calendar`, `adaptive_training_plan`); `marts.fct_coach_workouts` holds Coach's workouts (Garmin shares the current week), shown beside each day of the page's training plan. `consensus.js` asks Claude (sample capability, on a click) to pick per day between the page's plan and Garmin Coach's, saved in `settings/consensus` with the inputs it answered.
 - `src/garminreader/claude.py`: the only Claude API client (workout reviews and the dashboard's AI features).
 - `src/garminreader/db.py`: the only way to open the database (`DATABASE` in config): a local DuckDB file, or MotherDuck as `md:<name>` with `MOTHERDUCK_TOKEN`.
 - `transform/`: dbt project. `staging/<source>/` tables (newest load wins), `marts/` tables (`fct_*`, `rpt_*`).

@@ -119,22 +119,32 @@ section>*{min-width:0}
 .phead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;padding:12px 16px 4px}
 .phead .tot{font:500 .78rem var(--mono);color:var(--ink2)}
 .pweek .note{padding:0 16px 10px;font-size:.88rem}
-.prow{display:grid;grid-template-columns:90px minmax(0,1.1fr) minmax(0,1.4fr);gap:6px 16px;padding:10px 16px;border-top:1px solid var(--grid);border-left:3px solid transparent}
+.prow{display:grid;grid-template-columns:80px repeat(3,minmax(0,1fr));gap:6px 18px;padding:10px 16px;border-top:1px solid var(--grid);border-left:3px solid transparent}
 .prow h4{margin:0;font:600 1rem var(--display)}
 .prow h4 .km{font:500 .78rem var(--mono);color:var(--ink2);margin-left:6px}
 .prow p{font-size:.88rem}
-.prow .why{color:var(--ink)}
+.prow .why{color:var(--ink2);font-size:.82rem;margin-top:4px}
+.prow>div{min-width:0}
+.prow>div:nth-child(3){border-left:3px solid var(--c3);padding-left:10px}
+.prow>div:nth-child(4){border-left:3px solid var(--c5);padding-left:10px}
+.phdr{font:500 .68rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);background:var(--panel);padding-block:8px}
+.phdr span:nth-child(3){padding-left:13px}.phdr span:nth-child(4){padding-left:13px}
+.prow>div:empty{border-left:0}
+.prow>div:empty::before{display:none!important}
+.cbar{display:grid;gap:6px;justify-items:start;padding:4px 16px 12px}
+.csum{color:var(--ink);font-size:.9rem;max-width:80ch}
+.cday{display:grid;gap:4px;justify-items:start}
+.cday .cwork{color:var(--ink);font-weight:600}
+.cday.stale{opacity:.5}
 .prow .why b{font-weight:600}
 .prow.intervals,.prow.threshold,.prow.race-pace{border-left-color:var(--c6)}
 .prow.long{border-left-color:var(--c5)}.prow.easy,.prow.strides,.prow.shakeout{border-left-color:var(--c2)}
 .prow.race{border-left-color:var(--c3);background:color-mix(in srgb,var(--c3) 8%,transparent)}
 .prow.rest{border-left-color:var(--grid)}
 .prow.past{opacity:.7}
-.gcoach{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;margin-top:6px;padding:4px 8px;border-left:3px solid var(--c3);background:color-mix(in srgb,var(--c3) 7%,transparent);font-size:.86rem}
-.gcoach b{font-weight:600;color:var(--ink)}
 .pd{display:grid;align-content:start;gap:2px;font-size:.8rem;color:var(--ink2)}
 .pd b{font:600 .95rem var(--display);color:var(--ink)}
-@media (max-width:640px){.prow{grid-template-columns:64px minmax(0,1fr)}.prow .why{grid-column:2}}
+@media (max-width:760px){.prow{grid-template-columns:64px minmax(0,1fr)}.prow>div:nth-child(n+3){grid-column:2}.prow>div:nth-child(2)::before{content:"This page";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.prow>div:nth-child(3)::before{content:"Garmin Coach";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.prow>div:nth-child(4)::before{content:"Consensus";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.phdr{display:none}}
 .pill.crit{color:var(--crit);background:color-mix(in srgb,var(--crit) 14%,transparent)}
 .coach{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
 .card{border:1px solid var(--grid);border-top:3px solid var(--grid);padding:14px 16px;display:grid;gap:8px;align-content:start;min-width:0}

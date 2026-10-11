@@ -160,12 +160,17 @@ function upcomingSessions(n = 7) {
 // Garmin Coach's workouts for a day (marts.fct_coach_workouts), shown beside the page's own session.
 // A Coach rest day comes as a workout without a name (training effect INVALID): not shown.
 const coachOn = date => (lastD?.coach || []).filter(c => String(c.d).slice(0, 10) === date && !c.rest && c.name);
-function coachLine(date, past) {
-  return coachOn(date).map(c => {
+// Garmin Coach's column: the workout, its duration, pace and effect, and done or missed once past.
+function coachCell(date, past) {
+  const items = coachOn(date);
+  // Garmin shares one week at a time: before the first stored week, what Coach planned is unknown.
+  const known = (lastD?.coach || []).map(c => String(c.d).slice(0, 10)).sort();
+  if (!items.length) return `<p class="cap">${!known.length ? 'No Garmin Coach plan' : date < known[0] ? '–' : 'Rest'}</p>`;
+  return items.map(c => {
     const done = /COMPLETE/.test(c.status || '') && !/NOT/.test(c.status || '');
-    const parts = [num(c.min) && c.min > 0 ? `${Math.round(c.min)} min` : '', c.description, lower(c.effect)].filter(Boolean).map(esc);
-    const state = done ? '<span class="pill good">done</span>' : past ? '<span class="pill warn">missed</span>' : '';
-    return `<p class="gcoach"><span class="eyebrow">Garmin Coach</span><b>${esc(c.name)}</b>${parts.length ? ` · ${parts.join(' · ')}` : ''} ${state}</p>`;
+    const parts = [num(c.min) && c.min > 0 ? `${Math.round(c.min)} min` : '', c.description].filter(Boolean).map(esc);
+    const state = done ? ' <span class="pill good">done</span>' : past ? ' <span class="pill warn">missed</span>' : '';
+    return `<h4>${esc(c.name)}${state}</h4><p>${parts.join(' · ')}</p>${c.effect ? `<p class="cap">${esc(lower(c.effect))}</p>` : ''}`;
   }).join('');
 }
 
@@ -183,28 +188,36 @@ function renderPlan(ctx) {
     `<span class="bar"><i style="height:${Math.max(8, w.km / maxKm * 100).toFixed(0)}%"></i></span><b>W${w.i + 1}</b><span>${fmtDate(iso(new Date(w.start)))}</span><span>${w.phase === 'race' ? 'race' : w.down ? 'lighter' : w.phase}</span><span>${Math.round(w.km)} km</span></button>`).join('');
 
   const w = weeks[planWeek], sessions = weekSessions(plan, w, G), today = iso(new Date(sig.x1));
-  let rows = '', rests = 0;
+  // This page's session on any day of the plan, with today's swap when recovery is low.
+  const planDay = date => {
+    const day = t(date), wk = weeks.find(x => { const k = Math.round((day - x.start) / DAY); return k >= 0 && k < 7; });
+    const s = wk ? weekSessions(plan, wk, G).get(Math.round((day - wk.start) / DAY)) : null;
+    if (s && date === today && sig.recovery === 'crit' && !['easy', 'long', 'race', 'shakeout'].includes(s.kind)) return { ...s, kind: 'easy', title: 'Easy run (swapped)', detail: `Recovery is low today: ${Math.round(s.km)} km easy instead of ${s.title.toLowerCase()}; do the session later in the week if you feel fresh` };
+    return s || null;
+  };
+  cons.input = consensusInput(plan, ctx, planDay);
+  let rows = '<div class="prow phdr" aria-hidden="true"><span>Day</span><span>This page\'s plan</span><span>Garmin Coach</span><span>Consensus by Claude</span></div>', rests = 0;
   for (let d = 0; d < 7; d++) {
-    const date = iso(new Date(w.start + d * DAY)), past = date < today, s = sessions.get(d);
+    const date = iso(new Date(w.start + d * DAY)), past = date < today;
     const done = sig.runs.filter(r => r.activity_date.slice(0, 10) === date);
     const when = `<div class="pd"><b>${DOW[d]}</b><span>${fmtDate(date)}</span>${date === today ? '<span class="pill good">today</span>' : ''}</div>`;
     if (past) {
       // The plan starts now: past days show what was actually run.
-      rows += `<div class="prow past">${when}<div><h4>${done.length ? 'Done' : 'No run'}</h4><p>${done.map(r => `${esc(r.activity_name)}: ${r.km.toFixed(1)} km${num(r.pace) ? ` at ${pace(r.pace)} /km` : ''}`).join('; ')}</p>${coachLine(date, true)}</div><div></div></div>`;
+      rows += `<div class="prow past">${when}<div><h4>${done.length ? 'Done' : 'No run'}</h4><p>${done.map(r => `${esc(r.activity_name)}: ${r.km.toFixed(1)} km${num(r.pace) ? ` at ${pace(r.pace)} /km` : ''}`).join('; ')}</p></div><div>${coachCell(date, true)}</div><div></div></div>`;
       continue;
     }
-    let sess = s;
-    // Under-recovered today: today's hard session becomes an easy run.
-    if (s && date === today && sig.recovery === 'crit' && !['easy', 'long', 'race', 'shakeout'].includes(s.kind)) sess = { ...s, kind: 'easy', title: 'Easy run (swapped)', detail: `Recovery is low today: ${Math.round(s.km)} km easy instead of ${s.title.toLowerCase()}; do the session later in the week if you feel fresh` };
-    rows += sess
-      ? `<div class="prow ${sess.kind}">${when}<div><h4>${esc(sess.title)} <span class="km">${sess.kind === 'race' ? plan.race.label : `${Math.round(sess.km)} km`}</span></h4><p>${esc(sess.detail)}</p>${coachLine(date, false)}</div><p class="why"><b>Why:</b> ${esc(sessionWhy(sess, plan, w, ctx))}</p></div>`
-      : `<div class="prow rest">${when}<div><h4>Rest</h4><p>Off, or 20–30 min of easy cycling or mobility.</p>${coachLine(date, false)}</div><p class="why"><b>Why:</b> ${esc(restWhy(rests++, ctx))}</p></div>`;
+    const sess = planDay(date);
+    const page = sess
+      ? `<h4>${esc(sess.title)} <span class="km">${sess.kind === 'race' ? plan.race.label : `${Math.round(sess.km)} km`}</span></h4><p>${esc(sess.detail)}</p><p class="why"><b>Why:</b> ${esc(sessionWhy(sess, plan, w, ctx))}</p>`
+      : `<h4>Rest</h4><p>Off, or 20–30 min of easy cycling or mobility.</p><p class="why"><b>Why:</b> ${esc(restWhy(rests++, ctx))}</p>`;
+    rows += `<div class="prow ${sess ? sess.kind : 'rest'}">${when}<div>${page}</div><div>${coachCell(date, false)}</div><div>${consensusCell(date)}</div></div>`;
   }
   const total = [...sessions.values()].reduce((s, x) => s + (x.kind === 'race' ? 0 : x.km), 0);
   const gc = (lastD?.coach || []).find(c => c.plan_name);
-  const coachHead = gc ? `<p class="cap">Next to each day: what your Garmin Coach plan (${esc(gc.plan_name)}${gc.plan_end_date ? `, to ${fmtDate(String(gc.plan_end_date))} ${String(gc.plan_end_date).slice(0, 4)}` : ''}) scheduled. Garmin only shares the current week of it.</p>` : '';
+  const coachHead = gc ? `<p class="cap">Garmin Coach: ${esc(gc.plan_name)}${gc.plan_end_date ? `, to ${fmtDate(String(gc.plan_end_date))} ${String(gc.plan_end_date).slice(0, 4)}` : ''}. Garmin only shares the current week of it, so the consensus covers those days.</p>` : '';
   $('plan').innerHTML = `<p>${head}</p>${coachHead}<div class="pstrip" role="group" aria-label="Weeks">${strip}</div>` +
     `<div class="pweek"><div class="phead"><h3>Week ${w.i + 1} · ${w.phase === 'race' ? 'Race week' : w.down ? 'Lighter week' : w.phase[0].toUpperCase() + w.phase.slice(1)}</h3><span class="tot">${Math.round(total)} km${w.long ? ` · long run ${Math.round(w.long)} km` : ''}</span></div>` +
-    `<p class="note">${w.down ? 'A lighter week: every fourth week drops about 25% so the three before it can sink in. ' : ''}${PHASE_NOTE[w.phase]}</p>${rows}</div>`;
+    `<p class="note">${w.down ? 'A lighter week: every fourth week drops about 25% so the three before it can sink in. ' : ''}${PHASE_NOTE[w.phase]}</p>${consensusBar(cons.input)}${rows}</div>`;
   for (const b of $('plan').querySelectorAll('.pw')) b.onclick = () => { planWeek = +b.dataset.w; renderPlan(ctx); };
+  bindConsensus();
 }

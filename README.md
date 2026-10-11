@@ -26,8 +26,10 @@ training paces and next week.
 
 **Training.** A race goal with a race-day projection from the trend in Garmin's predictions,
 charts for predictions, volume, VO2 max and training load, a week-by-week plan to race day with a
-reason for every session, and a review of last week. When you follow a Garmin Coach plan, each day
-also shows what Coach scheduled (workout, duration, pace, training effect) and whether you did it.
+reason for every session, and a review of last week. When you follow a Garmin Coach plan, the week
+shows three columns per day: this page's session, Garmin Coach's (workout, duration, pace, training
+effect, done or missed), and Claude's consensus, which picks Garmin's, the page's, a blend or rest
+for each coming day and argues why from your recovery, load and goal.
 
 ![The Training tab: race goal with projection, prediction and volume charts](docs/images/dashboard-training.png)
 
