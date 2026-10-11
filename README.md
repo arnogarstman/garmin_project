@@ -33,6 +33,162 @@ flowchart LR
 | **Orchestration** | Dagster: raw ingest as daily partitions (backfill or rerun any day), each dbt model as an asset with its tests as checks, the review step between the two halves of dbt (Dagster splits the dbt run around it), and freshness checks. |
 | **Serving** | The dashboard page ([`snapshot/`](src/garminreader/snapshot/)), and a Streamlit app for local use ([`dashboard/`](src/garminreader/dashboard/)) with its own AI coach. Both read marts only. |
 
+## Data model
+
+Three layers in one database. Raw holds API payloads as they came; staging (`stg_*`, one model per
+endpoint) unpacks the JSON and keeps the newest version of each record; marts are what the
+dashboard and the coach source read.
+
+```mermaid
+flowchart LR
+    subgraph raw[raw]
+        P[(payloads)]
+        L[(loads)]
+    end
+    subgraph staging[staging]
+        BP[base_garmin__payloads]
+        SD[daily_summary · sleep · hrv<br/>training_readiness · training_status]
+        SA[activities]
+        SW[weigh_ins]
+        SR[race_predictions]
+        SC[coach_workouts]
+        SZ[heart_rate_zones]
+        SY[device_syncs]
+        SV[coach__workout_reviews]
+        SL[ingest__loads]
+    end
+    subgraph marts[marts]
+        DH[fct_daily_health]
+        DE[fct_daily_energy]
+        DB[fct_daily_body]
+        FA[fct_activities]
+        RR[fct_race_results]
+        RP[fct_race_predictions]
+        CW[fct_coach_workouts]
+        WR[fct_workout_reviews]
+        RPT[rpt_current_status · rpt_heart_rate_zones<br/>rpt_garmin_freshness · rpt_metric_coverage · rpt_metric_lag]
+    end
+    P -->|source = garmin| BP
+    BP --> SD & SA & SW & SR & SC & SZ & SY
+    P -->|source = coach| SV
+    L --> SL
+    SD --> DH
+    SA --> FA & RR
+    SW --> DB
+    SR --> RP
+    SC --> CW
+    SV --> WR
+    FA --> WR & DE
+    DH & DB --> DE
+    SD & SA & SZ & SY & SL & DH & DB & RP --> RPT
+```
+
+The marts share two keys: a day (`calendar_date`, `activity_date` on activities) and an activity
+(`activity_id`). Foreign keys are not declared; uniqueness and not-null are dbt tests.
+
+```mermaid
+erDiagram
+    fct_daily_health ||--|| fct_daily_energy : "calendar_date"
+    fct_daily_health ||--o| fct_daily_body : "calendar_date"
+    fct_daily_health ||--o| fct_race_predictions : "calendar_date"
+    fct_daily_health ||--o{ fct_activities : "calendar_date = activity_date"
+    fct_daily_health ||--o{ fct_coach_workouts : "calendar_date"
+    fct_activities ||--o| fct_workout_reviews : "activity_id"
+    fct_activities ||--o| fct_race_results : "activity_id"
+
+    fct_daily_health {
+        date calendar_date PK
+        int resting_hr
+        int steps
+        int sleep_score
+        int hrv_last_night_avg
+        int readiness_score
+        varchar training_status
+        double acute_load
+        double chronic_load
+        double vo2max
+    }
+    fct_daily_energy {
+        date calendar_date PK
+        double total_kcal
+        bigint workouts
+        double workout_kcal
+        double training_load
+        double run_km
+        double weight_kg
+    }
+    fct_daily_body {
+        date calendar_date PK
+        bigint weigh_ins
+        double weight_kg
+        double body_fat_pct
+        double muscle_mass_kg
+    }
+    fct_race_predictions {
+        date calendar_date PK
+        int predicted_5k_s
+        int predicted_10k_s
+        int predicted_half_marathon_s
+        int predicted_marathon_s
+    }
+    fct_activities {
+        bigint activity_id PK
+        date activity_date
+        varchar activity_type
+        double distance_km
+        double duration_min
+        double pace_min_per_km
+        double avg_hr
+        double training_load
+        double hr_zone_1_min "through hr_zone_5_min"
+        boolean is_tagged_race
+    }
+    fct_coach_workouts {
+        varchar workout_uuid PK
+        date calendar_date
+        varchar workout_name
+        double duration_min
+        varchar status
+        boolean is_long
+        varchar plan_name
+    }
+    fct_workout_reviews {
+        bigint activity_id PK
+        varchar headline
+        varchar session_type
+        varchar summary
+        varchar_list went_well
+        varchar_list watch_out
+        varchar model
+        varchar prompt_version
+    }
+    fct_race_results {
+        bigint activity_id PK
+        date race_date
+        varchar race_distance
+        double finish_time_s
+        bigint race_number
+        double personal_best_to_date_s
+        boolean is_personal_best
+    }
+```
+
+| Mart | Grain |
+|---|---|
+| `fct_daily_health` | One row per ingested day: sleep, HRV, stress, body battery, readiness, training status and load |
+| `fct_daily_energy` | One row per ingested day: calories burned, the day's workouts, weight |
+| `fct_daily_body` | One row per day with a weigh-in, averaged over that day's weigh-ins |
+| `fct_race_predictions` | One row per day: Garmin's 5K, 10K, half and full marathon predictions |
+| `fct_activities` | One row per Garmin activity, with minutes per heart rate zone |
+| `fct_race_results` | One row per half marathon or marathon, with progression and personal bests |
+| `fct_workout_reviews` | One row per activity Claude reviewed |
+| `fct_coach_workouts` | One row per workout in Garmin Coach's adaptive plan |
+| `rpt_current_status` | Always one row: the latest status, readiness, weight and predictions |
+| `rpt_heart_rate_zones` | One row per sport: zone floors, max and threshold heart rate |
+| `rpt_garmin_freshness` | One row per freshness signal (view, ages relative to query time) |
+| `rpt_metric_coverage` | One row per day and metric, with whether it has data |
+| `rpt_metric_lag` | One row per metric: latest day, days behind, completeness (view) |
+
 ## Engineering choices worth a look
 
 - **An append-only raw layer.** Change detection compares each payload with the latest stored
