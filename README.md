@@ -94,7 +94,7 @@ and week.
 
 ![The Nutrition tab: weight goal, trend and the energy budget per day](docs/images/dashboard-nutrition.png)
 
-**History.** One period filter (3, 6 or 12 months) over everything: summary tiles against the
+**History.** One period filter (the last 3, 6 or 12 calendar months, this one included) over everything: summary tiles against the
 period before, running volume per month or week, a heatmap of daily training load, pace per run
 with its trend, resting heart rate, HRV and weight, when you train, run distances, time per
 activity, records, and a filterable activity log. Events you note (illness, injury, travel) and
