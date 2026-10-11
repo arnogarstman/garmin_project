@@ -211,6 +211,15 @@ function coachCell(date, past) {
   }).join('');
 }
 
+// This page's session on a day of the plan (null for rest), with today's swap when recovery is low.
+function plannedOn(plan, ctx, date) {
+  const { G, sig } = ctx, day = t(date), today = iso(new Date(sig.x1));
+  const wk = plan.weeks.find(x => { const k = Math.round((day - x.start) / DAY); return k >= 0 && k < 7; });
+  const s = wk ? weekSessions(plan, wk, G).get(Math.round((day - wk.start) / DAY)) : null;
+  if (s && date === today && sig.recovery === 'crit' && !['easy', 'long', 'race', 'shakeout'].includes(s.kind)) return { ...s, kind: 'easy', title: 'Easy run (swapped)', detail: `Recovery is low today: ${Math.round(s.km)} km easy instead of ${s.title.toLowerCase()}; do the session later in the week if you feel fresh` };
+  return s ? { ...s, km: s.kind === 'race' ? plan.race.km : s.km } : null;
+}
+
 function renderPlan(ctx) {
   planCtx = ctx;
   const plan = buildPlan(ctx);
@@ -225,13 +234,8 @@ function renderPlan(ctx) {
     `<span class="bar"><i style="height:${Math.max(8, w.km / maxKm * 100).toFixed(0)}%"></i></span><b>W${w.i + 1}</b><span>${fmtDate(iso(new Date(w.start)))}</span><span>${w.phase === 'race' ? 'race' : w.down ? 'lighter' : w.phase}</span><span>${Math.round(w.km)} km</span></button>`).join('');
 
   const w = weeks[planWeek], sessions = weekSessions(plan, w, G), today = iso(new Date(sig.x1));
-  // This page's session on any day of the plan, with today's swap when recovery is low.
-  const planDay = date => {
-    const day = t(date), wk = weeks.find(x => { const k = Math.round((day - x.start) / DAY); return k >= 0 && k < 7; });
-    const s = wk ? weekSessions(plan, wk, G).get(Math.round((day - wk.start) / DAY)) : null;
-    if (s && date === today && sig.recovery === 'crit' && !['easy', 'long', 'race', 'shakeout'].includes(s.kind)) return { ...s, kind: 'easy', title: 'Easy run (swapped)', detail: `Recovery is low today: ${Math.round(s.km)} km easy instead of ${s.title.toLowerCase()}; do the session later in the week if you feel fresh` };
-    return s || null;
-  };
+  const planDay = date => plannedOn(plan, ctx, date);
+  logPlan(plan, ctx);
   let rows = '<div class="prow phdr" aria-hidden="true"><span>Day</span><span>This page\'s plan</span><span>Garmin Coach</span></div>', rests = 0;
   for (let d = 0; d < 7; d++) {
     const ws = new Date(w.start), date = iso(new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + d)), past = date < today;
@@ -256,9 +260,11 @@ function renderPlan(ctx) {
   const levelLine = `<p class="cap"><b>${plan.lv.label} level:</b> ${plan.lv.note}. Change it with your race goal above.${levelHint}</p>`;
   const gc = (lastD?.coach || []).find(c => c.plan_name);
   const coachHead = gc ? `<p class="cap">Garmin Coach: ${esc(gc.plan_name)}${gc.plan_end_date ? `, to ${fmtDate(String(gc.plan_end_date))} ${String(gc.plan_end_date).slice(0, 4)}` : ''}. Garmin only shares the current week of it.</p>` : '';
-  $('plan').innerHTML = `<p>${head}</p>${levelLine}${coachHead}<div class="pstrip" role="group" aria-label="Weeks">${strip}</div>` +
+  $('plan').innerHTML = `<p>${head}</p>${levelLine}${potentialPlanLine(ctx)}${coachHead}<div class="pstrip" role="group" aria-label="Weeks">${strip}</div>` +
     `<div class="pweek"><div class="phead"><h3>Week ${w.i + 1} · ${w.phase === 'race' ? 'Race week' : w.down ? 'Lighter week' : w.phase[0].toUpperCase() + w.phase.slice(1)}</h3><span class="tot">${Math.round(total)} km${w.long ? ` · long run ${Math.round(w.long)} km` : ''}</span></div>` +
     `<p class="note">${w.down ? 'A lighter week: every fourth week drops about 25% so the three before it can sink in. ' : ''}${w.phase === 'base' && plan.lv.baseQuality ? 'Base, at the Ambitious level: easy volume, strides, and one threshold session a week from the start.' : PHASE_NOTE[w.phase]}</p>${rows}</div>`;
   for (const b of $('plan').querySelectorAll('.pw')) b.onclick = () => { planWeek = +b.dataset.w; renderPlan(ctx); };
+  const recalc = $('plan-recalc');
+  if (recalc) recalc.onclick = recalcFromPotential;
   renderPotential(lastD, ctx);
 }

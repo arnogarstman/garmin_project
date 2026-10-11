@@ -118,8 +118,12 @@ function renderPage(D) {
     const signed = (v, d = 0) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(d)}`;
     const runs = (D.runs || []).filter(r => num(r.km) && r.km > 0);
     const recent = runs.filter(r => t(r.activity_date) > x1 - DAYS28);
-    const card = (topic, status, label, verdict, body, extra = '') =>
-      `<div class="card ${status}"><div class="head"><span class="eyebrow">${topic}</span><span class="pill ${status === 'good' ? 'good' : status === 'warn' ? 'warn' : 'crit'}">${label}</span></div><h3>${verdict}</h3>${extra}<p>${body}</p></div>`;
+    // Each verdict says what it rests on: a low-confidence card is drawn quieter, so a thin signal
+    // never reads like a firm one. basis(text, n, lo, hi): low below lo, high from hi.
+    const basis = (text, n, lo, hi) => ({ text, conf: n < lo ? 'low' : n >= hi ? 'high' : 'medium' });
+    const card = (topic, status, label, verdict, body, extra = '', b = null) =>
+      `<div class="card ${status}${b?.conf === 'low' ? ' low' : ''}"><div class="head"><span class="eyebrow">${topic}</span><span class="pill ${status === 'good' ? 'good' : status === 'warn' ? 'warn' : 'crit'}">${label}</span></div><h3>${verdict}</h3>${extra}<p>${body}</p>` +
+      `${b ? `<p class="basis">Based on ${b.text} · ${b.conf} confidence</p>` : ''}</div>`;
     const none = (topic, msg) => `<div class="card"><div class="head"><span class="eyebrow">${topic}</span></div><p>${msg}</p></div>`;
     const kv = rows => `<div class="kv">${rows.map(([k, v, d]) => `<span>${k}</span><b>${v}</b><i>${d}</i>`).join('')}</div>`;
     const cards = [];
@@ -156,11 +160,51 @@ function renderPage(D) {
             : ['crit', 'fatigued', 'Under-recovered', `${flags.join(' and ').replace(/^./, c => c.toUpperCase())}. Take a rest day or a very easy 30 minutes.`];
         recovery = status;
         Object.assign(sig, { recovery, hrvToday: lastDay.hrv, hrvNormal: hrvM });
-        cards.push(card('Recovery today', status, label, verdict, advice, kv([
+        const noted = flags.length ? eventsNear(x1, 3) : [];
+        cards.push(card('Recovery today', status, label, verdict, advice + (noted.length ? ` Your notes: ${esc(noted.join('; '))}.` : ''), kv([
           ['HRV last night', num(lastDay.hrv) ? `${lastDay.hrv} ms` : '–', num(lastDay.hrv) ? `${signed(lastDay.hrv - hrvM)} vs ${hrvM.toFixed(0)}` : ''],
           ['Resting HR', num(lastDay.rhr) ? `${lastDay.rhr} bpm` : '–', num(lastDay.rhr) ? `${signed(lastDay.rhr - rhrM)} vs ${rhrM.toFixed(0)}` : ''],
           ['Sleep, 7-day avg', num(sleep7) ? sleep7.toFixed(0) : '–', num(sleep7) && num(sleepB) ? `${signed(sleep7 - sleepB)} vs ${sleepB.toFixed(0)}` : ''],
-        ])));
+        ]), basis(`a ${hrvB.length}-night baseline`, hrvB.length, 14, 24)));
+      }
+    }
+
+    // Plan adherence over the last 4 weeks (today excluded): this page's logged sessions against the
+    // runs (adherence.js), with Garmin Coach's own done and missed beside them.
+    {
+      const today = iso(new Date(x1)), start = iso(new Date(thisWeek - 28 * DAY)), logStart = planlogStart();
+      const from = logStart && logStart > start ? logStart : start, a = adherence(runs, D.coach, from, today);
+      const gc = a.coach;
+      if (a.n < 3 && gc.n < 3) {
+        cards.push(none('Plan adherence', planlogActive()
+          ? `Counting has started: the page now keeps each day's planned session and compares it with your runs once the day has passed.${gc.n ? ` Garmin Coach so far: ${gc.done} of ${gc.n} done.` : ''}`
+          : 'Open the page on claude.ai so it can keep its plan day by day and compare it with your runs.'));
+      } else {
+        const own = a.n >= 3, n = own ? a.n : gc.n, done = own ? a.done : gc.done, share = done / n * 100;
+        const keyShare = a.key ? a.keyHit / a.key * 100 : 100;
+        const [status, label, verdict] = share >= 85 && (!own || keyShare >= 75) ? ['good', 'on plan', 'Doing what the plan asks']
+          : share >= 60 ? ['warn', 'slipping', 'Some sessions are slipping'] : ['crit', 'off plan', 'The plan and your weeks have drifted apart'];
+        // Where the misses cluster, and which key sessions went.
+        const missed = own ? a.sessions.filter(x => !x.run) : gc.missed.map(c => ({ date: String(c.d).slice(0, 10), title: c.name }));
+        const perDay = new Map();
+        for (const m of missed) { const d = DOW[(new Date(t(m.date)).getDay() + 6) % 7]; perDay.set(d, (perDay.get(d) || 0) + 1); }
+        const [worstDay, worstN] = [...perDay.entries()].sort((x, y) => y[1] - x[1])[0] || [null, 0];
+        const keyMissed = a.sessions.filter(x => x.key && !x.hit);
+        const advice = worstN >= 2 ? `${worstN} of the ${missed.length} misses fall on ${worstDay}. Move that session to a day that suits your week better.`
+          : own && keyMissed.length ? `Key sessions missed or cut short: ${keyMissed.slice(0, 3).map(x => `${x.title.toLowerCase()} (${fmtDate(x.date)})`).join(', ')}. The long run and quality sessions carry the plan: protect those and drop an easy run instead.`
+            : own && a.plannedKm && a.ranKm > a.plannedKm * 1.15 ? `You ran ${Math.round((a.ranKm / a.plannedKm - 1) * 100)}% more than planned. Extra kilometres raise injury risk faster than they add fitness.`
+              : status === 'good' ? 'Consistent execution is what makes a plan work. Keep it up and let the plan do the progression.'
+                : 'Run fewer, more certain sessions: three you always do beat five you sometimes do.';
+        const rows = [];
+        if (own) {
+          rows.push(['Sessions done', `${a.done} of ${a.n}`, `${(a.done / a.n * 100).toFixed(0)}%`]);
+          if (a.key) rows.push(['Key sessions hit', `${a.keyHit} of ${a.key}`, 'long, quality, race']);
+          rows.push(['Distance', `${Math.round(a.ranKm)} km`, `planned ${Math.round(a.plannedKm)} km`]);
+        }
+        if (gc.n) rows.push(['Garmin Coach', `${gc.done} of ${gc.n}`, 'workouts done']);
+        cards.push(card(`Plan adherence · since ${fmtDate(from)}`, status, label, verdict,
+          `${advice}${own ? ' A key session counts as hit with 80% of a long run, 8 min in zones 4–5 for intervals, or 15 min in zones 3–5 for threshold.' : planlogActive() ? ' From Garmin Coach; this page\'s own plan is logged from now on.' : ' From Garmin Coach; open the page on claude.ai to compare this page\'s own plan too.'}`,
+          kv(rows), basis(`${n} planned sessions`, n, 6, 15)));
       }
     }
 
@@ -187,7 +231,7 @@ function renderPage(D) {
         }
         svg += `<line x1="${0.8 * W}" x2="${0.8 * W}" y1="2" y2="38" stroke="${css('ink')}" stroke-width="2" stroke-dasharray="3 3"/></svg>`;
         svg += '<div class="legend">' + seg.map(([p, c, name]) => `<span><b style="background:${css(c)};height:8px;border-radius:2px"></b>${name} ${p.toFixed(0)}%</span>`).join('') + '<span><b style="background:none;border-left:2px dashed var(--ink);height:12px;width:0;border-radius:0"></b>80% easy target</span></div>';
-        cards.push(card('Intensity balance · 4 weeks', status, label, verdict, advice, svg));
+        cards.push(card('Intensity balance · 4 weeks', status, label, verdict, advice, svg, basis(`${(tot / 60).toFixed(1)} h of running with heart rate`, tot / 60, 3, 8)));
       }
     }
 
@@ -212,7 +256,7 @@ function renderPage(D) {
         const f = frame({ x0: a, x1: Math.max(b, a + DAY), yTicks: niceTicks(Math.min(...ys) * 0.97, Math.max(...ys) * 1.03, 3), fmtY: v => v.toFixed(2), W: 520, H: 150 });
         let svg = f.s + `<path d="M${f.X(a)},${f.Y(fit(a))}L${f.X(b)},${f.Y(fit(b))}" stroke="${css('ink2')}" stroke-width="1.5" stroke-dasharray="5 4" fill="none"/>`;
         for (const [x, y, r] of easy) svg += `<circle cx="${f.X(x)}" cy="${f.Y(y)}" r="4.5" fill="${css('c1')}" stroke="${css('bg')}" stroke-width="2"><title>${esc(r.activity_name)} ${fmtDate(r.activity_date)}: ${pace(r.pace)} /km at ${Math.round(r.avg_hr)} bpm, ${y.toFixed(2)} m per beat</title></circle>`;
-        cards.push(card('Aerobic efficiency', status, label, verdict, advice + ' Metres per heartbeat on your easier runs; dashed line is the trend.', svg + '</svg>'));
+        cards.push(card('Aerobic efficiency', status, label, verdict, advice + ' Metres per heartbeat on your easier runs; dashed line is the trend. Hills and heat lower it too.', svg + '</svg>', basis(`${easy.length} easy runs`, easy.length, 8, 15)));
       }
     }
 
@@ -234,7 +278,7 @@ function renderPage(D) {
           ['Last full week', `${last.toFixed(1)} km`, `${signed(chg)}%`],
           [`${before.length} week${before.length === 1 ? '' : 's'} before, avg`, `${prev.toFixed(1)} km`, ''],
           ['Acute : chronic load', acwr ? acwr.toFixed(2) : '–', acwr ? lower(st.acwr_status) : ''],
-        ])));
+        ]), basis(`${before.length + 1} full weeks`, before.length + 1, 3, 4)));
       }
     }
 
@@ -256,7 +300,7 @@ function renderPage(D) {
           ['Longest run', `${lr.km.toFixed(1)} km`, fmtDate(lr.activity_date)],
           ['Share of its week', `${share.toFixed(0)}%`, `of ${weekKm.toFixed(0)} km`],
           ['Runs per week', perWeek.toFixed(1), `${recent.length} in 4 weeks`],
-        ])));
+        ]), basis(`${recent.length} runs in 4 weeks`, recent.length, 6, 12)));
       }
     }
 
@@ -281,7 +325,7 @@ function renderPage(D) {
           ['Long runs (75+ min)', `${Math.round(l)} beats/km`, `${long.length} runs`],
           ['Easy runs (25–60 min)', `${Math.round(sh)} beats/km`, `${short.length} runs`],
           ['Difference', `${signed(drift)}%`, 'under 3% is good'],
-        ])));
+        ]), basis(`${long.length} long and ${short.length} easy runs`, Math.min(long.length, short.length), 3, 5)));
       }
     }
 
@@ -304,7 +348,7 @@ function renderPage(D) {
           ['Readiness after best nights', mean(hi.map(p => p[1])).toFixed(0), `sleep ≥ ${goodNight}`],
           ['Readiness after worst nights', mean(lo.map(p => p[1])).toFixed(0), `sleep ≤ ${lo[lo.length - 1][0]}`],
           ['Sleep, 7-day avg', num(sleep7) ? sleep7.toFixed(0) : '–', `${pairs.length} nights`],
-        ])));
+        ]), basis(`${pairs.length} nights`, pairs.length, 42, 90)));
       }
     }
 
@@ -327,7 +371,7 @@ function renderPage(D) {
           ['Runs per week', perWeek.toFixed(1), `${weeks.length} full weeks`],
           ['Weeks with 3+ runs', `${solid} of ${weeks.length}`, ''],
           ['Longest gap', `${longest} day${longest === 1 ? '' : 's'}`, `last run ${daysSince === 0 ? 'today' : daysSince === 1 ? 'yesterday' : daysSince + ' days ago'}`],
-        ])));
+        ]), basis(`${weeks.length} full weeks`, weeks.length, 4, 8)));
       }
     }
 
@@ -350,7 +394,7 @@ function renderPage(D) {
           ['Threshold', range(p10 + 0.05, hmP), '20–30 min'],
           ['Half marathon', pace(hmP), 'race pace'],
           ['Intervals', range(p5 - 0.05, p5 + 0.05), '3–5 min reps'],
-        ])));
+        ]), basis(`Garmin's prediction and ${easyRuns.length} easy runs`, easyRuns.length, 3, 8)));
       }
     }
 
@@ -380,7 +424,7 @@ function renderPage(D) {
           ['Long run', `${longKm.toFixed(0)} km`, easyFrom ? `at ${pace(easyFrom + 0.1)}–${pace(easyTo)} /km` : 'easy pace'],
           ['Quality sessions', hard ? '2' : label === 'taper' ? '1' : '0', hard ? 'threshold + intervals' : label === 'taper' ? 'race pace' : 'strides only'],
           ['Runs', `${runsPerWeek}`, 'rest of them easy'],
-        ])));
+        ]), basis(`${full.length} full weeks`, full.length, 3, 4)));
       }
     }
 
@@ -418,6 +462,16 @@ function renderPage(D) {
         if (dr !== null && dr <= -10) change.push(`Readiness averaged ${a.ready.toFixed(0)}, ${Math.abs(dr).toFixed(0)} points below the week before: keep next week's hard sessions short.`);
         if (num(a.sleep) && num(b.sleep) && a.sleep < b.sleep - 4) change.push(`Sleep score fell from ${b.sleep.toFixed(0)} to ${a.sleep.toFixed(0)}.`);
         else if (num(a.sleep) && a.sleep >= 80) well.push(`Sleep averaged ${a.sleep.toFixed(0)}.`);
+        // Against the plan: this page's logged sessions and Garmin Coach's workouts, per week.
+        const pa = adherence(runs, D.coach, iso(new Date(w1)), iso(new Date(thisWeek))), pb = adherence(runs, D.coach, iso(new Date(w0)), iso(new Date(w1)));
+        if (pa.n >= 2) {
+          const gone = pa.sessions.filter(x => x.key && !x.hit);
+          if (pa.done === pa.n && !gone.length) well.push(`All ${pa.n} planned sessions done.`);
+          else if (gone.length) change.push(`Missed or cut short: ${gone.map(x => `${x.title.toLowerCase()} on ${DOW[(new Date(t(x.date)).getDay() + 6) % 7]}`).join(', ')}. Those carry the plan.`);
+          else change.push(`${pa.n - pa.done} of ${pa.n} planned sessions did not happen.`);
+        }
+        if (pa.coach.n && pa.coach.done < pa.coach.n) change.push(`Garmin Coach: ${pa.coach.n - pa.coach.done} of ${pa.coach.n} workouts missed.`);
+        const ratio = x => x.n ? `${x.done} of ${x.n}` : '–', coachRatio = x => x.coach.n ? `${x.coach.done} of ${x.coach.n}` : '–';
         const f = (v, d = 0, u = '') => num(v) ? `${v.toFixed(d)}${u}` : '–';
         const delta = (x, y, d = 0, u = '') => num(x) && num(y) ? `${x - y >= 0 ? '+' : '−'}${Math.abs(x - y).toFixed(d)}${u}` : '';
         const rows = [
@@ -429,6 +483,8 @@ function renderPage(D) {
           ['Sleep score', f(a.sleep), f(b.sleep), delta(a.sleep, b.sleep)],
           ['HRV', f(a.hrv, 0, ' ms'), f(b.hrv, 0, ' ms'), delta(a.hrv, b.hrv, 0, ' ms')],
           ['Readiness', f(a.ready), f(b.ready), delta(a.ready, b.ready)],
+          ...(pa.n || pb.n ? [['Planned sessions done', ratio(pa), ratio(pb), ''], ['Planned distance', pa.n ? f(pa.plannedKm, 0, ' km') : '–', pb.n ? f(pb.plannedKm, 0, ' km') : '–', '']] : []),
+          ...(pa.coach.n || pb.coach.n ? [['Garmin Coach done', coachRatio(pa), coachRatio(pb), '']] : []),
         ];
         const list = (title, items, cls) => `<div class="notes ${cls}"><h3>${title}</h3>${items.length ? `<ul>${items.slice(0, 3).map(x => `<li>${x}</li>`).join('')}</ul>` : '<p>Nothing stood out.</p>'}</div>`;
         $('review').innerHTML = `<div class="tbl"><table><thead><tr><th></th><th class="n">Week of ${fmtDate(iso(new Date(w1)))}</th><th class="n">Week before</th><th class="n">Change</th></tr></thead><tbody>` +
@@ -512,6 +568,7 @@ function renderPage(D) {
       const xEnd = pr ? Math.max(x1, pr.raceT) : x1;
       const f = frame({ x0: Math.min(x0, P[0][0]), x1: xEnd, yTicks: ticks, fmtY: v => hms(v).replace(/:00$/, '') });
       let s = f.s;
+      s += eventMarks(f, chartEvents(D, Math.min(x0, P[0][0]), x1, { races: false }));
       if (tgt) s += `<line x1="${f.L}" x2="${f.W - f.R}" y1="${f.Y(tgt)}" y2="${f.Y(tgt)}" stroke="${css('c6')}" stroke-dasharray="5 4" stroke-width="1.5"/>`;
       if (pr) {
         // Today and race day markers, then the dashed projection with a dot per week.
@@ -546,7 +603,7 @@ function renderPage(D) {
       const full = partial ? Wk.slice(0, -1) : Wk;
       const f = frame({ x0: t(Wk[0].wk), x1: t(last.wk) + 7 * DAY, yTicks: niceTicks(0, Math.max(...Wk.map(r => r.run_km), 1), 4), fmtY: v => v });
       const bw = Math.max((f.X(t(Wk[0].wk) + 7 * DAY) - f.X(t(Wk[0].wk))) * 0.72, 1);
-      let s = f.s;
+      let s = f.s + eventMarks(f, chartEvents(D, t(Wk[0].wk), t(last.wk) + 7 * DAY));
       for (const r of Wk) { const x = f.X(t(r.wk)), y = f.Y(r.run_km); s += `<rect x="${x + 1}" y="${y}" width="${bw}" height="${f.Y(0) - y}" fill="${css('c1')}" opacity="${partial && r === last ? 0.4 : 0.85}" rx="1.5"><title>Week of ${fmtDate(r.wk)}: ${r.run_km} km</title></rect>`; }
       const m = full.map((r, i) => [t(r.wk) + 3.5 * DAY, rolling(full, i, 4, 'run_km')]);
       $('ch-km').innerHTML = s + `<path d="${path(m, f.X, f.Y)}" fill="none" stroke="${css('ink2')}" stroke-width="1.6"/></svg>`;
@@ -563,7 +620,7 @@ function renderPage(D) {
     else {
       const f = frame({ x0, x1, yTicks: niceTicks(Math.min(...v) - 0.5, Math.max(...v) + 0.5, 4), fmtY: x => x, H: 180 });
       const line = path(P, f.X, f.Y), first = P.find(p => num(p[1])), last = lastValid(P);
-      let s = f.s + `<path d="${line}L${f.X(last[0])},${f.T + f.ih}L${f.X(first[0])},${f.T + f.ih}Z" fill="${css('c2')}" opacity=".12"/><path d="${line}" fill="none" stroke="${css('c2')}" stroke-width="2.2"/>`;
+      let s = f.s + eventMarks(f, chartEvents(D, x0, x1)) + `<path d="${line}L${f.X(last[0])},${f.T + f.ih}L${f.X(first[0])},${f.T + f.ih}Z" fill="${css('c2')}" opacity=".12"/><path d="${line}" fill="none" stroke="${css('c2')}" stroke-width="2.2"/>`;
       $('ch-vo2').innerHTML = s + endDot(last, f.X, f.Y, css('c2'), last[1].toFixed(1)) + '</svg>';
       const r0 = rolling(days, 6, 7, 'rhr'), r1 = rolling(days, days.length - 1, 7, 'rhr');
       $('cap-vo2').textContent = `From ${(vo2Base ?? v[0]).toFixed(1)} to ${last[1].toFixed(1)} ml/kg/min.` + (num(r0) && num(r1) ? ` Resting HR 7-day average went from ${r0.toFixed(0)} to ${r1.toFixed(0)} bpm.` : '');
@@ -577,10 +634,12 @@ function renderPage(D) {
     if (v.length < 2) empty('ch-load', 'No training load data yet.');
     else {
       const f = frame({ x0, x1, yTicks: niceTicks(0, Math.max(...v), 4), fmtY: x => x, H: 180 });
-      $('ch-load').innerHTML = f.s + `<path d="${path(C, f.X, f.Y)}" fill="none" stroke="${css('c2')}" stroke-width="2.2"/><path d="${path(A, f.X, f.Y)}" fill="none" stroke="${css('c5')}" stroke-width="1.4"/></svg>`;
+      $('ch-load').innerHTML = f.s + eventMarks(f, chartEvents(D, x0, x1)) + `<path d="${path(C, f.X, f.Y)}" fill="none" stroke="${css('c2')}" stroke-width="2.2"/><path d="${path(A, f.X, f.Y)}" fill="none" stroke="${css('c5')}" stroke-width="1.4"/></svg>`;
       $('cap-load').textContent = num(st.acwr) ? `Acute to chronic ratio is ${st.acwr.toFixed(1)} today (${lower(st.acwr_status)}). Above 1.5 the dashboard flags injury risk.` : '';
     }
   }
+
+  $('evkey-training').innerHTML = eventKey(D, x0, x1);
 
   // Heart rate zones
   {
@@ -598,80 +657,6 @@ function renderPage(D) {
       });
       $('ch-zones').innerHTML = s + '</svg>';
     }
-  }
-
-  // Run calendar: one continuous grid of weeks, Monday to Sunday, newest week on top, so the
-  // last day of a month and the first of the next sit side by side in the week they share. Each
-  // month is headed above its own days in its topmost week, alternates in tint and marks its 1st. Each run
-  // is a bubble whose area is proportional to its distance (diameter grows with the square root),
-  // on one fixed scale.
-  {
-    const runs = D.runs || [], byDay = new Map(), totals = new Map();
-    for (const r of runs) {
-      const k = r.activity_date.slice(0, 10), m = k.slice(0, 7);
-      if (!byDay.has(k)) byDay.set(k, []);
-      byDay.get(k).push(r);
-      const tot = totals.get(m) || { n: 0, km: 0 };
-      totals.set(m, { n: tot.n + 1, km: tot.km + (r.km || 0) });
-    }
-    const bubble = km => `<span class="bub" style="--r:${Math.sqrt(Math.max(km || 0, 0.25)).toFixed(3)}"></span>`;
-    // Weigh-ins: each day's weight with its change since the previous weigh-in, and each month's
-    // change from its first to its last weigh-in. A change toward the weight goal (meals.js) is
-    // marked good, away from it marked warn; without a goal the change stays neutral.
-    const weights = (D.body || []).filter(r => num(r.weight)).map(r => [r.d.slice(0, 10), r.weight]).sort();
-    const wByDay = new Map(), wMonth = new Map();
-    weights.forEach(([k, w], i) => {
-      wByDay.set(k, { w, delta: i ? w - weights[i - 1][1] : null });
-      const m = wMonth.get(k.slice(0, 7)) || { first: w, last: w };
-      m.last = w; wMonth.set(k.slice(0, 7), m);
-    });
-    const goalDir = typeof weightGoal !== 'undefined' && weightGoal && weights.length ? Math.sign(weightGoal.target_kg - weights[weights.length - 1][1]) : 0;
-    const tone = d => !goalDir || Math.abs(d) < 0.05 ? 'flat' : Math.sign(d) === goalDir ? 'good' : 'warn';
-    const signedKg = d => `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(1)}`;
-    const monday = d => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7);
-    // Every month of the past year, with or without runs, and further back when runs go further back.
-    const last = new Date(x1), today = iso(last), yearAgo = new Date(last.getFullYear(), last.getMonth() - 11, 1);
-    const firstRun = runs.length ? new Date(t(runs[0].activity_date)) : yearAgo;
-    const start = firstRun < yearAgo ? new Date(firstRun.getFullYear(), firstRun.getMonth(), 1) : yearAgo;
-    $('calkeys').innerHTML = (runs.length ? 'Bubble area is proportional to distance:' + [5, 10, 21.1].map(km => `<span>${bubble(km)}${km} km</span>`).join('') : '') +
-      (weights.length ? `<span class="wkey"><span class="wt">80.4<i class="${goalDir ? 'good' : 'flat'}">−0.3</i></span>weight and change since the last weigh-in${goalDir ? `, green toward your ${weightGoal.target_kg.toFixed(1)} kg goal` : ''}</span>` : '');
-    const headed = new Set();
-    let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<span class="dow">${d}</span>`).join('');
-    for (let w = monday(last); w >= monday(start); w = new Date(w.getFullYear(), w.getMonth(), w.getDate() - 7)) {
-      const week = [...Array(7)].map((_, i) => new Date(w.getFullYear(), w.getMonth(), w.getDate() + i));
-      // Head each month above its topmost week, spanning only its own days in that week, so the
-      // heading and its rule mark exactly where the month starts.
-      const segs = [];
-      week.forEach((d, i) => {
-        if (d < start || d > last) return;
-        const m = iso(d).slice(0, 7), seg = segs[segs.length - 1];
-        if (seg && seg.m === m) seg.b = i; else segs.push({ m, a: i, b: i });
-      });
-      const heads = segs.filter(g => !headed.has(g.m));
-      if (heads.length) {
-        let col = 0;
-        for (const { m, a, b } of heads) {
-          headed.add(m);
-          if (a > col) html += `<span class="mgap" style="grid-column:span ${a - col}"></span>`;
-          const tot = totals.get(m) || { n: 0, km: 0 }, [y, mo] = m.split('-').map(Number);
-          const wm = wMonth.get(m), wmTxt = wm && wm.last !== wm.first ? ` · <i class="${tone(wm.last - wm.first)}">${signedKg(wm.last - wm.first)} kg</i>` : '';
-          html += `<div class="mhead" style="grid-column:${a + 1} / span ${b - a + 1}"><h3>${MON[mo - 1]} ${y}</h3><span class="tot">${tot.n} run${tot.n === 1 ? '' : 's'} · ${tot.km.toFixed(1)} km${wmTxt}</span></div>`;
-          col = b + 1;
-        }
-        if (col < 7) html += `<span class="mgap" style="grid-column:span ${7 - col}"></span>`;
-      }
-      for (const d of week) {
-        if (d < start || d > last) { html += '<span class="day pad"></span>'; continue; }
-        const key = iso(d), rs = byDay.get(key) || [];
-        const wd = wByDay.get(key);
-        const tip = (wd ? [`Weight ${wd.w.toFixed(1)} kg${num(wd.delta) ? ` (${signedKg(wd.delta)} kg since the last weigh-in)` : ''}`] : []).concat(rs.map(r => `${r.activity_name}: ${num(r.km) ? r.km.toFixed(1) + ' km' : ''}${num(r.min) ? ' in ' + hms(r.min * 60) : ''}${num(r.pace) ? ', ' + pace(r.pace) + ' /km' : ''}`)).join('\n');
-        const cls = ['day', d.getMonth() % 2 ? 'alt' : '', d.getDate() === 1 ? 'first' : '', key === today ? 'today' : ''].filter(Boolean).join(' ');
-        html += `<div class="${cls}"${tip ? ` title="${esc(tip)}"` : ''}><span class="dn">${d.getDate() === 1 ? `1 ${MON[d.getMonth()]}` : d.getDate()}</span>` +
-          (rs.length ? '<div class="runs">' + rs.map(r => `<div class="run">${bubble(r.km)}<span class="km">${num(r.km) ? r.km.toFixed(1) : '–'}<small>km</small></span><span class="nm">${esc(r.activity_name)}</span></div>`).join('') + '</div>' : '') +
-          (wd ? `<span class="wt">${wd.w.toFixed(1)}${num(wd.delta) ? `<i class="${tone(wd.delta)}">${signedKg(wd.delta)}</i>` : ''}</span>` : '') + '</div>';
-      }
-    }
-    $('cal').innerHTML = `<div class="mgrid">${html}</div>`;
   }
 
   renderReviews(D.reviews);

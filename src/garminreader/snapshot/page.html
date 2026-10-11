@@ -144,6 +144,27 @@ section>*{min-width:0}
 .pd{display:grid;align-content:start;gap:2px;font-size:.8rem;color:var(--ink2)}
 .pd b{font:600 .95rem var(--display);color:var(--ink)}
 @media (max-width:760px){.prow{grid-template-columns:64px minmax(0,1fr)}.prow>div:nth-child(n+3){grid-column:2}.prow>div:nth-child(2)::before{content:"This page";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.prow>div:nth-child(3)::before{content:"Garmin Coach";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.phdr{display:none}}
+.card .basis{font:500 .7rem var(--mono);color:var(--muted);border-top:1px solid var(--grid);padding-top:6px}
+.card.low{border-top-style:dashed}
+.card.low h3{color:var(--ink2)}
+.planpot{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.events{display:grid;gap:12px}
+.evform{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 12px;align-items:end;border:1px solid var(--grid);padding:14px 16px}
+.evform .wide{grid-column:span 2}
+@media (max-width:520px){.evform .wide{grid-column:auto}}
+.evform label{display:grid;gap:4px;font:500 .7rem var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.evform input,.evform select{font:.95rem var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--grid);border-radius:4px;padding:7px 9px;min-width:0;width:100%}
+.evform input:focus-visible,.evform select:focus-visible,.evform button:focus-visible{outline:2px solid var(--c1);outline-offset:1px}
+.evform .btns{display:flex;gap:8px}
+.evform button{font:500 .88rem var(--body);background:var(--c1);border:1px solid var(--c1);color:#fff;border-radius:4px;padding:7px 14px;cursor:pointer}
+.events .msg{font-size:.85rem;color:var(--warn)}
+.evlist{display:grid;border:1px solid var(--grid)}
+.ev{display:grid;grid-template-columns:8px 110px 70px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 12px;font-size:.9rem}
+.ev+.ev{border-top:1px solid var(--grid)}
+.ev i{width:8px;height:8px;border-radius:50%;display:block}
+.ev .d{font:500 .78rem var(--mono);color:var(--ink2)}
+.ev span:not(.d){color:var(--ink2);min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:520px){.ev{grid-template-columns:8px minmax(0,1fr) auto}.ev .d{grid-column:2}.ev b{grid-column:2}.ev span:not(.d){grid-column:2}.ev .livebtn{grid-column:3;grid-row:1}}
 .pill.crit{color:var(--crit);background:color-mix(in srgb,var(--crit) 14%,transparent)}
 .coach{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
 .card{border:1px solid var(--grid);border-top:3px solid var(--grid);padding:14px 16px;display:grid;gap:8px;align-content:start;min-width:0}
@@ -319,6 +340,7 @@ footer{font-size:.8rem;color:var(--muted)}
       <div class="cap" id="cap-load"></div>
     </div>
   </div>
+  <div id="evkey-training"></div>
   <div class="chart">
     <h3>Time in heart rate zone, all activities</h3>
     <div id="ch-zones"></div>
@@ -355,6 +377,10 @@ footer{font-size:.8rem;color:var(--muted)}
 </section>
 
 <section>
+  <div class="sechead"><h2>Events</h2><span class="eyebrow">Illness · injury · travel, marked on the charts</span></div>
+  <div class="events" id="events"></div>
+</section>
+<section>
   <div class="sechead"><h2>Volume</h2><span class="eyebrow">Running distance · training load</span></div>
   <div class="chart">
     <h3 id="vol-title">Running per month</h3>
@@ -384,6 +410,7 @@ footer{font-size:.8rem;color:var(--muted)}
     <div class="chart"><h3>Weight</h3><div id="ch-weight"></div></div>
   </div>
   <p class="cap">Weekly averages; lower resting heart rate and higher HRV usually mean better recovery and fitness.</p>
+  <div id="evkey-history"></div>
 </section>
 
 <section>

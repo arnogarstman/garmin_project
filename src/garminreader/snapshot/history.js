@@ -1,9 +1,9 @@
 // History tab: what the last months of training add up to. One period filter (3, 6 or 12 months)
 // scopes every view below it: summary tiles against the period before, volume per month or week,
 // a heatmap of daily training load, pace per run with its trend, resting heart rate, HRV and weight,
-// when you train, the mix of run distances and activities, records, and the activity log (the table
-// view of everything charted). Every chart carries a hover and focus tooltip; values also sit in
-// the tables, so the tooltip never gates a number. renderPage() calls renderHistory().
+// when you train, the mix of run distances and activities, records, the activity log (the table
+// view of everything charted) and the calendar of runs and weigh-ins. Every chart carries a hover
+// and focus tooltip; values also sit in the tables, so the tooltip never gates a number. renderPage() calls renderHistory().
 const HIST_KEY = 'garminreader.historyDays';
 const HIST_PERIODS = [[91, '3 months'], [182, '6 months'], [365, '12 months']];
 let histDays = 365, histType = 'all', histAll = false;
@@ -54,14 +54,15 @@ function bindTips(root) {
   root.addEventListener('focusout', () => { histTip.hidden = true; });
 }
 
-// A line chart with a crosshair: the pointer snaps to the nearest point and shows its value.
-function lineChart(id, pts, { fmt, label, color = 'c1', W = 360, H = 190 }) {
+// A line chart with a crosshair: the pointer snaps to the nearest point and shows its value, and
+// the events (events.js) near it. `events` are drawn under the line.
+function lineChart(id, pts, { fmt, label, color = 'c1', W = 360, H = 190, events = [] }) {
   const el = $(id), P = pts.filter(p => num(p[1]));
   if (P.length < 2) { el.innerHTML = '<p class="cap">Not enough readings in this period.</p>'; return; }
   const ys = P.map(p => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), pad = (hi - lo) * 0.15 || 1;
   const f = frame({ x0: P[0][0], x1: P[P.length - 1][0], yTicks: niceTicks(lo - pad, hi + pad, 3), fmtY: v => fmt(v, true), W, H });
   const last = P[P.length - 1];
-  el.innerHTML = f.s + `<path d="${path(P, f.X, f.Y)}" fill="none" stroke="${css(color)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
+  el.innerHTML = f.s + eventMarks(f, events) + `<path d="${path(P, f.X, f.Y)}" fill="none" stroke="${css(color)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
     `<circle cx="${f.X(last[0])}" cy="${f.Y(last[1])}" r="4" fill="${css(color)}" stroke="${css('bg')}" stroke-width="2"/>` +
     `<text x="${f.X(last[0]) - 8}" y="${f.Y(last[1]) - 10}" text-anchor="end" style="fill:${css('ink')};font-weight:500;paint-order:stroke;stroke:${css('bg')};stroke-width:4px;stroke-linejoin:round">${fmt(last[1])}</text>` +
     `<line class="xh" y1="${f.T}" y2="${f.T + f.ih}" stroke="${css('muted')}" stroke-width="1" visibility="hidden"/>` +
@@ -78,7 +79,8 @@ function lineChart(id, pts, { fmt, label, color = 'c1', W = 360, H = 190 }) {
     const px = f.X(p[0]), py = f.Y(p[1]), r = svg.getBoundingClientRect();
     xh.setAttribute('x1', px); xh.setAttribute('x2', px); xd.setAttribute('cx', px); xd.setAttribute('cy', py);
     xh.setAttribute('visibility', 'visible'); xd.setAttribute('visibility', 'visible');
-    hit.dataset.tv = fmt(p[1]); hit.dataset.tl = `${label} · ${fmtDate(iso(new Date(p[0])))}`;
+    const near = eventsNear(p[0], 4);
+    hit.dataset.tv = fmt(p[1]); hit.dataset.tl = `${label} · ${fmtDate(iso(new Date(p[0])))}${near.length ? ` · ${near.join('; ')}` : ''}`;
     showTip(hit, r.left + px / f.W * r.width, clientY ?? r.top + py / H * r.height);
   };
   const hide = () => { xh.setAttribute('visibility', 'hidden'); xd.setAttribute('visibility', 'hidden'); histTip.hidden = true; };
@@ -94,6 +96,79 @@ function lineChart(id, pts, { fmt, label, color = 'c1', W = 360, H = 190 }) {
     hit.dataset.at = P[i][0];
     show(P[i]);
   });
+}
+
+// Run calendar: one continuous grid of weeks, Monday to Sunday, newest week on top, so the
+// last day of a month and the first of the next sit side by side in the week they share. Each
+// month is headed above its own days in its topmost week, alternates in tint and marks its 1st.
+// Each run is a bubble whose area is proportional to its distance (diameter grows with the square
+// root), on one fixed scale. Only the days of the History period show, start to last, and a
+// month's heading totals only those days.
+function renderCalendar(D, start, last) {
+  const from = iso(start), today = iso(last), inPeriod = k => k >= from && k <= today;
+  const runs = (D.runs || []).filter(r => inPeriod(r.activity_date.slice(0, 10))), byDay = new Map(), totals = new Map();
+  for (const r of runs) {
+    const k = r.activity_date.slice(0, 10), m = k.slice(0, 7);
+    if (!byDay.has(k)) byDay.set(k, []);
+    byDay.get(k).push(r);
+    const tot = totals.get(m) || { n: 0, km: 0 };
+    totals.set(m, { n: tot.n + 1, km: tot.km + (r.km || 0) });
+  }
+  const bubble = km => `<span class="bub" style="--r:${Math.sqrt(Math.max(km || 0, 0.25)).toFixed(3)}"></span>`;
+  // Weigh-ins: each day's weight with its change since the previous weigh-in, and each month's
+  // change from its first to its last weigh-in. A change toward the weight goal (meals.js) is
+  // marked good, away from it marked warn; without a goal the change stays neutral.
+  const weights = (D.body || []).filter(r => num(r.weight)).map(r => [r.d.slice(0, 10), r.weight]).sort();
+  const wByDay = new Map(), wMonth = new Map();
+  weights.forEach(([k, w], i) => {
+    if (!inPeriod(k)) return;
+    wByDay.set(k, { w, delta: i ? w - weights[i - 1][1] : null });
+    const m = wMonth.get(k.slice(0, 7)) || { first: w, last: w };
+    m.last = w; wMonth.set(k.slice(0, 7), m);
+  });
+  const goalDir = typeof weightGoal !== 'undefined' && weightGoal && weights.length ? Math.sign(weightGoal.target_kg - weights[weights.length - 1][1]) : 0;
+  const tone = d => !goalDir || Math.abs(d) < 0.05 ? 'flat' : Math.sign(d) === goalDir ? 'good' : 'warn';
+  const signedKg = d => `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(1)}`;
+  const monday = d => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7);
+  $('calkeys').innerHTML = (runs.length ? 'Bubble area is proportional to distance:' + [5, 10, 21.1].map(km => `<span>${bubble(km)}${km} km</span>`).join('') : '') +
+    (weights.length ? `<span class="wkey"><span class="wt">80.4<i class="${goalDir ? 'good' : 'flat'}">−0.3</i></span>weight and change since the last weigh-in${goalDir ? `, green toward your ${weightGoal.target_kg.toFixed(1)} kg goal` : ''}</span>` : '');
+  const headed = new Set();
+  let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<span class="dow">${d}</span>`).join('');
+  for (let w = monday(last); w >= monday(start); w = new Date(w.getFullYear(), w.getMonth(), w.getDate() - 7)) {
+    const week = [...Array(7)].map((_, i) => new Date(w.getFullYear(), w.getMonth(), w.getDate() + i));
+    // Head each month above its topmost week, spanning only its own days in that week, so the
+    // heading and its rule mark exactly where the month starts.
+    const segs = [];
+    week.forEach((d, i) => {
+      if (d < start || d > last) return;
+      const m = iso(d).slice(0, 7), seg = segs[segs.length - 1];
+      if (seg && seg.m === m) seg.b = i; else segs.push({ m, a: i, b: i });
+    });
+    const heads = segs.filter(g => !headed.has(g.m));
+    if (heads.length) {
+      let col = 0;
+      for (const { m, a, b } of heads) {
+        headed.add(m);
+        if (a > col) html += `<span class="mgap" style="grid-column:span ${a - col}"></span>`;
+        const tot = totals.get(m) || { n: 0, km: 0 }, [y, mo] = m.split('-').map(Number);
+        const wm = wMonth.get(m), wmTxt = wm && wm.last !== wm.first ? ` · <i class="${tone(wm.last - wm.first)}">${signedKg(wm.last - wm.first)} kg</i>` : '';
+        html += `<div class="mhead" style="grid-column:${a + 1} / span ${b - a + 1}"><h3>${MON[mo - 1]} ${y}</h3><span class="tot">${tot.n} run${tot.n === 1 ? '' : 's'} · ${tot.km.toFixed(1)} km${wmTxt}</span></div>`;
+        col = b + 1;
+      }
+      if (col < 7) html += `<span class="mgap" style="grid-column:span ${7 - col}"></span>`;
+    }
+    for (const d of week) {
+      if (d < start || d > last) { html += '<span class="day pad"></span>'; continue; }
+      const key = iso(d), rs = byDay.get(key) || [];
+      const wd = wByDay.get(key);
+      const tip = (wd ? [`Weight ${wd.w.toFixed(1)} kg${num(wd.delta) ? ` (${signedKg(wd.delta)} kg since the last weigh-in)` : ''}`] : []).concat(rs.map(r => `${r.activity_name}: ${num(r.km) ? r.km.toFixed(1) + ' km' : ''}${num(r.min) ? ' in ' + hms(r.min * 60) : ''}${num(r.pace) ? ', ' + pace(r.pace) + ' /km' : ''}`)).join('\n');
+      const cls = ['day', d.getMonth() % 2 ? 'alt' : '', d.getDate() === 1 ? 'first' : '', key === today ? 'today' : ''].filter(Boolean).join(' ');
+      html += `<div class="${cls}"${tip ? ` title="${esc(tip)}"` : ''}><span class="dn">${d.getDate() === 1 ? `1 ${MON[d.getMonth()]}` : d.getDate()}</span>` +
+        (rs.length ? '<div class="runs">' + rs.map(r => `<div class="run">${bubble(r.km)}<span class="km">${num(r.km) ? r.km.toFixed(1) : '–'}<small>km</small></span><span class="nm">${esc(r.activity_name)}</span></div>`).join('') + '</div>' : '') +
+        (wd ? `<span class="wt">${wd.w.toFixed(1)}${num(wd.delta) ? `<i class="${tone(wd.delta)}">${signedKg(wd.delta)}</i>` : ''}</span>` : '') + '</div>';
+    }
+  }
+  $('cal').innerHTML = `<div class="mgrid">${html}</div>`;
 }
 
 function renderHistory(D) {
@@ -114,6 +189,8 @@ function renderHistory(D) {
     try { localStorage.setItem(HIST_KEY, histDays); } catch { /* storage blocked: the choice lasts this visit */ }
     renderHistory(D);
   };
+
+  renderCalendar(D, start, today);
 
   if (!acts.length) {
     for (const id of ['histkpis', 'ch-vol', 'ch-heat', 'ch-pace', 'ch-rhr', 'ch-hrv', 'ch-weight', 'ch-when', 'ch-dist', 'ch-mix', 'records', 'histlog']) $(id).innerHTML = '';
@@ -230,7 +307,7 @@ function renderHistory(D) {
       // And only once the data covers the whole 4 weeks before a point.
       const covered = pool.length ? pool[0][0] + 28 * DAY : Infinity;
       const trend = pts.filter(([x]) => x >= covered).map(([x]) => [x, pool.filter(([y]) => y > x - 28 * DAY && y <= x).map(p => p[1])]).filter(([, w]) => w.length >= 3).map(([x, w]) => [x, -median(w)]);
-      let s = f.s;
+      let s = f.s + eventMarks(f, chartEvents(D, t(startIso), t(todayIso)));
       for (const [x, y, r] of pts) {
         const rad = Math.max(4, Math.min(10, 2.2 * Math.sqrt(r.km)));
         s += `<circle cx="${f.X(x)}" cy="${f.Y(-y)}" r="${rad}" fill="${css('c1')}" fill-opacity=".45" stroke="${css('bg')}" stroke-width="2"/>`;
@@ -251,9 +328,13 @@ function renderHistory(D) {
       return [...m.entries()].sort().map(([w, v]) => [t(w) + 3 * DAY, v.reduce((s, x) => s + x, 0) / v.length]);
     };
     const days = inP(D.daily || []), body = inP((D.body || []).map(r => ({ ...r, d: dayIso(r.d) })));
-    lineChart('ch-rhr', weeklyAvg(days, 'rhr'), { fmt: (v, axis) => axis ? Math.round(v) : `${v.toFixed(0)} bpm`, label: 'Resting HR, weekly average', color: 'c6' });
-    lineChart('ch-hrv', weeklyAvg(days, 'hrv'), { fmt: (v, axis) => axis ? Math.round(v) : `${v.toFixed(0)} ms`, label: 'HRV, weekly average', color: 'c2' });
-    lineChart('ch-weight', weeklyAvg(body, 'weight'), { fmt: (v, axis) => axis ? v.toFixed(axis === true && v % 1 ? 1 : 0) : `${v.toFixed(1)} kg`, label: 'Weight, weekly average', color: 'c5' });
+    // Each chart spans its own points, so it gets the events of its own span.
+    const evIn = pts => { const P = pts.filter(q => num(q[1])); return P.length > 1 ? chartEvents(D, P[0][0], P[P.length - 1][0]) : []; };
+    const rhr = weeklyAvg(days, 'rhr'), hrv = weeklyAvg(days, 'hrv'), wt = weeklyAvg(body, 'weight');
+    lineChart('ch-rhr', rhr, { fmt: (v, axis) => axis ? Math.round(v) : `${v.toFixed(0)} bpm`, label: 'Resting HR, weekly average', color: 'c6', events: evIn(rhr) });
+    lineChart('ch-hrv', hrv, { fmt: (v, axis) => axis ? Math.round(v) : `${v.toFixed(0)} ms`, label: 'HRV, weekly average', color: 'c2', events: evIn(hrv) });
+    lineChart('ch-weight', wt, { fmt: (v, axis) => axis ? v.toFixed(axis === true && v % 1 ? 1 : 0) : `${v.toFixed(1)} kg`, label: 'Weight, weekly average', color: 'c5', events: evIn(wt) });
+    $('evkey-history').innerHTML = eventKey(D, t(startIso), t(todayIso));
   }
 
   // When you train: weekday by time of day, dot area by the number of activities.
@@ -365,6 +446,8 @@ function renderHistory(D) {
 }
 
 bindTips($('panel-history'));
+bindTips($('panel-training'));
+bindTips($('panel-today'));
 // Redraw when the window crosses the phone width, so the wide charts switch drawing width.
 {
   let narrow = innerWidth < 700;
