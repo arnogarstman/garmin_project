@@ -4,10 +4,13 @@
 // when you train, the mix of run distances and activities, records, the activity log (the table
 // view of everything charted) and the calendar of runs and weigh-ins. Every chart carries a hover
 // and focus tooltip; values also sit in the tables, so the tooltip never gates a number. renderPage() calls renderHistory().
-const HIST_KEY = 'garminreader.historyDays';
-const HIST_PERIODS = [[91, '3 months'], [182, '6 months'], [365, '12 months']];
-let histDays = 365, histType = 'all', histAll = false;
-try { histDays = Number(localStorage.getItem(HIST_KEY)) || 365; } catch { histDays = 365; }
+// A period is whole calendar months: this month and the ones before it, so 3 months never shows a
+// day of a fourth.
+const HIST_KEY = 'garminreader.historyMonths';
+const HIST_PERIODS = [[3, '3 months'], [6, '6 months'], [12, '12 months']];
+let histMonths = 12, histType = 'all', histAll = false;
+try { histMonths = Number(localStorage.getItem(HIST_KEY)) || 12; } catch { histMonths = 12; }
+if (!HIST_PERIODS.some(([m]) => m === histMonths)) histMonths = 12;
 
 const isRun = type => /run/i.test(type || '');
 const sumBy = (rows, k) => rows.reduce((s, r) => s + (num(r[k]) ? r[k] : 0), 0);
@@ -172,21 +175,23 @@ function renderCalendar(D, start, last) {
 }
 
 function renderHistory(D) {
-  const today = new Date(), todayIso = iso(today), start = addDays(today, -histDays + 1), startIso = iso(start);
+  const today = new Date(), todayIso = iso(today), start = new Date(today.getFullYear(), today.getMonth() - histMonths + 1, 1), startIso = iso(start);
+  // Days in the period so far; the period before is as many days, so the comparison is like for like.
+  const histDays = Math.round((t(todayIso) - t(startIso)) / DAY) + 1;
   const all = (D.history || []).map(r => ({ ...r, d: dayIso(r.activity_date) }));
   const inP = (rows, key = 'd') => rows.filter(r => r[key] >= startIso && r[key] <= todayIso);
   const acts = inP(all), runs = acts.filter(r => isRun(r.type) && num(r.km) && r.km > 0);
   const prevStart = iso(addDays(start, -histDays)), prev = all.filter(r => r.d >= prevStart && r.d < startIso);
   const prevRuns = prev.filter(r => isRun(r.type) && num(r.km) && r.km > 0);
   const hasPrev = all.length && all[0].d <= prevStart;
-  const periodLabel = HIST_PERIODS.find(p => p[0] === histDays)?.[1] || `${histDays} days`;
+  const periodLabel = `${histDays} days`;
 
   $('histfilter').innerHTML = `<span class="eyebrow">Period</span><div class="seg" role="group" aria-label="Period">${
-    HIST_PERIODS.map(([d, l]) => `<button type="button" data-days="${d}" aria-pressed="${d === histDays}">${l}</button>`).join('')
-  }</div><span class="cap">${fmtDate(startIso)} to ${fmtDate(todayIso)} ${today.getFullYear()}${hasPrev ? `, compared with the ${periodLabel} before` : ''}</span>`;
+    HIST_PERIODS.map(([m, l]) => `<button type="button" data-months="${m}" aria-pressed="${m === histMonths}">${l}</button>`).join('')
+  }</div><span class="cap">${fmtDate(startIso)}${start.getFullYear() !== today.getFullYear() ? ` ${start.getFullYear()}` : ''} to ${fmtDate(todayIso)} ${today.getFullYear()}${hasPrev ? `, compared with the ${periodLabel} before` : ''}</span>`;
   for (const b of $('histfilter').querySelectorAll('button')) b.onclick = () => {
-    histDays = Number(b.dataset.days);
-    try { localStorage.setItem(HIST_KEY, histDays); } catch { /* storage blocked: the choice lasts this visit */ }
+    histMonths = Number(b.dataset.months);
+    try { localStorage.setItem(HIST_KEY, histMonths); } catch { /* storage blocked: the choice lasts this visit */ }
     renderHistory(D);
   };
 
@@ -220,7 +225,7 @@ function renderHistory(D) {
   // Volume: running km per month (12 months) or per week (shorter periods); the current, unfinished
   // one faded. Labels on the largest and the latest complete bar; every bar in the tooltip and table.
   {
-    const weekly = histDays <= 182;
+    const weekly = histMonths <= 6;
     const key = d => weekly ? iso(mondayOf(new Date(t(d)))) : d.slice(0, 7);
     const buckets = [];
     for (let c = weekly ? mondayOf(start) : new Date(start.getFullYear(), start.getMonth(), 1); c <= today; c = weekly ? addDays(c, 7) : new Date(c.getFullYear(), c.getMonth() + 1, 1)) {
@@ -275,8 +280,8 @@ function renderHistory(D) {
     ['Mon', 'Wed', 'Fri'].forEach((d, i) => { s += `<text x="${L - 6}" y="${T + (i * 2 + 0.5) * cell + 4}" text-anchor="end">${d}</text>`; });
     let lastMonth = -1;
     for (let w = 0; w < weeks; w++) {
-      const monday = addDays(first, w * 7);
-      if (monday.getMonth() !== lastMonth) { lastMonth = monday.getMonth(); if (w < weeks - 1) s += `<text x="${L + w * cell}" y="${T - 6}">${MON[lastMonth]}</text>`; }
+      const monday = addDays(first, w * 7), shown = monday < start ? start : monday;
+      if (shown.getMonth() !== lastMonth) { lastMonth = shown.getMonth(); if (w < weeks - 1) s += `<text x="${L + w * cell}" y="${T - 6}">${MON[lastMonth]}</text>`; }
       for (let d = 0; d < 7; d++) {
         const day = addDays(monday, d), k = iso(day);
         if (k < startIso || k > todayIso) continue;
