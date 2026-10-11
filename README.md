@@ -20,7 +20,6 @@ flowchart LR
     M -->|coach source| C[Claude API]
     C -->|workout reviews| R
     M --> P[Dashboard page<br/>Claude artifact]
-    M --> D[Streamlit app]
     O{{Dagster}} -.orchestrates.-> R & ST & M
     A[GitHub Actions<br/>daily + workout check] -.runs.-> O
 ```
@@ -31,7 +30,7 @@ flowchart LR
 | **Bronze** | Append-only `raw.payloads` (payload and params as JSON, plus load metadata) and a `raw.loads` run log. A record is stored only when it is new or changed, and a load commits with its run-log row in one transaction. Every model can be rebuilt from this table. |
 | **Silver, gold** | dbt. Staging keeps the newest version of each record. Marts: daily health, daily energy, activities, Garmin Coach workouts, body composition, race results with personal bests, race predictions, workout reviews, current status, heart rate zones, and data freshness reports. Every model has data tests, plus a dbt unit test for race detection. |
 | **Orchestration** | Dagster: raw ingest as daily partitions (backfill or rerun any day), each dbt model as an asset with its tests as checks, the review step between the two halves of dbt (Dagster splits the dbt run around it), and freshness checks. |
-| **Serving** | The dashboard page ([`snapshot/`](src/garminreader/snapshot/)), and a Streamlit app for local use ([`dashboard/`](src/garminreader/dashboard/)) with its own AI coach. Both read marts only. |
+| **Serving** | The dashboard page ([`snapshot/`](src/garminreader/snapshot/)), which reads marts only. |
 
 ## Data model
 
@@ -237,14 +236,17 @@ Claude's potential" button asks Claude again when the read is missing or out of 
 the plan from its target and level); charts for predictions, volume, VO2 max
 and training load; a week-by-week plan to race day with a reason for every session; and a review
 of last week, including planned sessions done. When you follow a Garmin Coach plan, the week
-shows two columns per day: this page's session, and Garmin Coach's (workout, duration, pace,
-training effect, done or missed).
+shows two columns per day: Claude's plan, and Garmin Coach's (workout, duration, pace,
+training effect, done or missed). Gym days are added by hand in Claude's plan: pick a chest,
+back or leg day on any day from today on, or repeat a week's gym days every week. A leg day
+before a long run or hard session gets a warning.
 
 ![The Training tab: race goal with projection, prediction and volume charts](docs/images/dashboard-training.png)
 
 **Nutrition.** A weight goal and a day-by-day meal plan. The page sets each day's energy and macro
-targets from Garmin's measured burn, the weight trend, today's workout and the planned sessions,
-within fixed limits (at most 0.75% of body weight a week, never under 1,500 kcal or 25% below the
+targets from Garmin's measured burn, the weight trend, today's workout, the planned runs and your
+gym days (4 kcal per kg for an hour on a chest or back day and 5 on a leg day, 2 g protein per kg
+and extra carbohydrate), within fixed limits (at most 0.75% of body weight a week, never under 1,500 kcal or 25% below the
 day's burn). Claude then writes meals for those targets, with macros per meal and totals per day
 and week.
 
@@ -289,7 +291,6 @@ uv run snapshot          # the dashboard page with the data embedded: data/snaps
 | `uv run pipeline [--partition YYYY-MM-DD]` | The Dagster job in process: ingest, reviews, dbt build, checks. |
 | `uv run dagster dev` | The Dagster UI: lineage, partitions, backfills, check results. |
 | `uv run snapshot [--live] [--days N] [--out PATH]` | The dashboard page. `--live` embeds no data and queries MotherDuck when opened. |
-| `uv run dashboard` | The Streamlit app. |
 | `uv run doctor` | Checks every connection; exits non-zero on a failure. |
 | `uv run workout-check` | Prints `new=true` when Garmin's newest activity is not stored yet. |
 | `uv run garmin-tokens login\|export` | Creates the Garmin session on your machine, and prints it for the `GARMIN_TOKENS` secret. |
@@ -304,7 +305,7 @@ Publish that file as a claude.ai artifact with the capabilities `mcp` (MotherDuc
 `db` (rule: `settings` read by viewers, written by editors), `user` and `sample`. The page keeps
 its state under `settings/`: the race goal (`race`), Claude's read on your potential (`potential`),
 the weight goal (`weight`), the last meal plan (`mealplan`), the planned session per day
-(`planlog`) and your events (`events`). New data then
+(`planlog`), your gym days (`gym`) and your events (`events`). New data then
 appears without republishing; republish only when the page's code changes.
 
 ## Scheduled refresh
@@ -361,7 +362,7 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pyt
 
 - **Python:** fully typed (`mypy --strict`). Tests cover the raw store's guarantees, the Garmin
   source (retries, 404s, windows), the workout check, the coach source (selection, cap, failures),
-  the Dagster definitions, the dashboard page's queries, and the Streamlit app's coaching logic.
+  the Dagster definitions, and the dashboard page's queries and rendering.
 - **CI on every pull request:** the checks above, plus a dbt parse of every model, test and source,
   and a validation of the Dagster asset graph built from them. The scheduled refresh builds and
   tests the models against the real data.
@@ -373,7 +374,6 @@ src/garminreader/
   ingest/          sources (Garmin, coach), the raw store, the ingest CLI, the workout check
   orchestration/   Dagster assets, checks, schedule, the pipeline CLI
   snapshot/        the dashboard page: template, one script per tab feature, live or embedded data
-  dashboard/       the Streamlit app; queries.py is its only database access
   claude.py        the one Claude API client
   config.py        every setting, from .env
   db.py            connections to MotherDuck or a local file
@@ -385,7 +385,7 @@ docs/images/       the README pictures
 ## Stack
 
 Python 3.12 · uv · python-garminconnect · DuckDB / MotherDuck · dbt-duckdb · Dagster with
-dagster-dbt · Claude API · Claude artifacts · Streamlit · Plotly · GitHub Actions
+dagster-dbt · Claude API · Claude artifacts · GitHub Actions
 
 ## Roadmap
 

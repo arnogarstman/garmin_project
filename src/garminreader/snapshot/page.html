@@ -1,7 +1,7 @@
 <title>Garminreader</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: narrow column; status strip, then a 2-col chart grid, then pipeline and data health. Palette from dashboard/colors.py. */
+/* Layout: narrow column; status strip, then a 2-col chart grid, then pipeline and data health. */
 :root{
   --bg:#fcfcfb; --panel:#f4f4f1; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781; --grid:#e1e0d9;
   --c1:#2a78d6; --c2:#1baf7a; --c3:#eda100; --c4:#008300; --c5:#4a3aa7; --c6:#e34948;
@@ -140,10 +140,15 @@ section>*{min-width:0}
 .prow.long{border-left-color:var(--c5)}.prow.easy,.prow.strides,.prow.shakeout{border-left-color:var(--c2)}
 .prow.race{border-left-color:var(--c3);background:color-mix(in srgb,var(--c3) 8%,transparent)}
 .prow.rest{border-left-color:var(--grid)}
+.prow.gym{border-left-color:var(--c4)}
+.prow .gym{margin-top:8px;padding-left:10px;border-left:3px solid var(--c4)}
+.prow>div>.gym:first-child{margin-top:0;padding-left:0;border-left:0}
+.gymsel{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font:500 .7rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--ink2)}
+.gymsel select{font:.82rem var(--body);text-transform:none;letter-spacing:0;color:var(--ink);background:var(--bg);border:1px solid var(--grid);border-radius:4px;padding:3px 6px}
 .prow.past{opacity:.7}
 .pd{display:grid;align-content:start;gap:2px;font-size:.8rem;color:var(--ink2)}
 .pd b{font:600 .95rem var(--display);color:var(--ink)}
-@media (max-width:760px){.prow{grid-template-columns:64px minmax(0,1fr)}.prow>div:nth-child(n+3){grid-column:2}.prow>div:nth-child(2)::before{content:"This page";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.prow>div:nth-child(3)::before{content:"Garmin Coach";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.phdr{display:none}}
+@media (max-width:760px){.prow{grid-template-columns:64px minmax(0,1fr)}.prow>div:nth-child(n+3){grid-column:2}.prow>div:nth-child(2)::before{content:"Claude\0027s plan";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.prow>div:nth-child(3)::before{content:"Garmin Coach";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.phdr{display:none}}
 .card .basis{font:500 .7rem var(--mono);color:var(--muted);border-top:1px solid var(--grid);padding-top:6px}
 .card.low{border-top-style:dashed}
 .card.low h3{color:var(--ink2)}
@@ -445,13 +450,12 @@ footer{font-size:.8rem;color:var(--muted)}
     <div class="step"><span class="eyebrow">Raw</span><h3>Untouched JSON</h3><p>API payloads land as-is with load metadata in <code>raw.payloads</code>, only when new or changed, with a run log in <code>raw.loads</code>. A local DuckDB file or MotherDuck.</p></div>
     <div class="step"><span class="eyebrow">Transform</span><h3>dbt on DuckDB</h3><p>Staging tables keep the newest load per record; marts expose <code>fct_*</code> and <code>rpt_*</code>. No transformation happens in ingest code.</p></div>
     <div class="step"><span class="eyebrow">Orchestrate</span><h3>Dagster</h3><p>Raw assets partitioned by day, dbt via dagster-dbt, and freshness checks. One run a day keeps it current.</p></div>
-    <div class="step"><span class="eyebrow">Serve</span><h3>Streamlit</h3><p>Reads marts only, through <code>queries.py</code>. Adds an AI coach and training plan against the goal file.</p></div>
+    <div class="step"><span class="eyebrow">Serve</span><h3>This page</h3><p>Reads marts only, live through the MotherDuck connector or embedded at build time. Claude's plan, the meal plan and the workout reviews sit on top.</p></div>
   </div>
   <div class="cmds">
     <div>uv run ingest garmin --since 2026-01-01 <span># or resume from last load</span></div>
     <div>uv run transform <span># dbt build</span></div>
     <div>uv run pipeline <span># ingest, build, checks</span></div>
-    <div>uv run dashboard</div>
     <div>uv run snapshot [--live] <span># this page</span></div>
   </div>
 </section>

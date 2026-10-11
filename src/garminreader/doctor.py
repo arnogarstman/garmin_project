@@ -72,7 +72,7 @@ def check_dbt() -> str:
 def check_anthropic() -> str:
     api_key = config.optional_env("ANTHROPIC_API_KEY")
     if api_key is None:
-        raise Skip("ANTHROPIC_API_KEY not set; the AI features (workout reviews, dashboard coach) stay off")
+        raise Skip("ANTHROPIC_API_KEY not set; the workout reviews stay off")
     import anthropic
 
     from garminreader.claude import MODEL

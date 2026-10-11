@@ -2,7 +2,6 @@
 __pycache__/
 *.pyc
 .garmin_tokens/
-.streamlit/secrets.toml
 .DS_Store
 .env
 data/
