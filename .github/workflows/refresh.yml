@@ -1,7 +1,11 @@
 name: refresh
+run-name: ${{ github.event.schedule == '*/30 4-20 * * *' && 'Workout check' || github.event_name == 'schedule' && 'Daily refresh' || 'Refresh' }}
 
-# The daily data refresh: Garmin Connect into MotherDuck, Claude's review of each new workout, then
-# every dbt model, test and check.
+# The data refresh: Garmin Connect into MotherDuck, Claude's review of each new workout, then every
+# dbt model, test and check. Runs in full every morning; through the day a check every 30 minutes
+# asks Garmin for the newest activity and runs the refresh only when the warehouse lacks it, so a
+# workout is in the warehouse, reviewed, within about 45 minutes of the watch syncing. Once today's
+# workout is in, the checks stop asking Garmin until the next day.
 # Garmin is only reached with the saved session (GARMIN_TOKENS), never with a password login,
 # and a session Garmin refreshes during the run is written back to the secret for the next run.
 # See "Scheduled refresh" in the README for the secrets and the yearly token renewal.
@@ -11,6 +15,10 @@ on:
     # 04:17 UTC: 06:17 in Amsterdam in summer, 05:17 in winter. Off the hour, when GitHub's
     # scheduler is least busy.
     - cron: "17 4 * * *"
+    # The workout check: every 30 minutes from 04:00 to 20:30 UTC, which covers 06:00 to 22:00 in
+    # Amsterdam in summer and winter; the check itself skips the hours outside that (see
+    # workout_check.py). Keep this string equal to the one in the run-name and the check step.
+    - cron: "*/30 4-20 * * *"
   workflow_dispatch:
     inputs:
       partition:
@@ -70,12 +78,21 @@ jobs:
           mkdir -p "$GARMIN_TOKEN_DIR"
           printf '%s' "$GARMIN_TOKENS" > "$GARMIN_TOKEN_DIR/garmin_tokens.json"
 
+      # The frequent schedule only: one Garmin call. Prints new=true or new=false; the steps
+      # below run when it found a new workout, and always on the daily or a manual run.
+      - name: Look for a new workout
+        id: check
+        if: github.event.schedule == '*/30 4-20 * * *'
+        run: uv run workout-check >> "$GITHUB_OUTPUT"
+
       # Every connection (Garmin with the saved session, MotherDuck, dbt) in one overview,
       # before the pipeline starts.
       - name: Check the connections
+        if: steps.check.outputs.new != 'false'
         run: uv run doctor
 
       - name: Run the pipeline
+        if: steps.check.outputs.new != 'false'
         env:
           PARTITION: ${{ inputs.partition }}
         run: uv run pipeline ${PARTITION:+--partition "$PARTITION"}
