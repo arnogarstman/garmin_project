@@ -21,7 +21,7 @@ async function startGoal() {
       box.innerHTML = readOnly ? '<p class="cap">No race set yet.</p>' : '<p class="cap">No race set yet.</p><div class="btns"><button type="button" class="primary" id="goal-edit">Set your race</button></div>';
     } else {
       box.innerHTML = `<span class="eyebrow">Your race</span><h3>${esc(g.race || r?.label || 'Race')}</h3>` +
-        `<p>${[r?.label, g.event_date && `${fmtDate(g.event_date)} ${new Date(t(g.event_date)).getFullYear()}`, g.target && `target ${esc(g.target)}`].filter(Boolean).join(' · ')}</p>` +
+        `<p>${[r?.label, g.event_date && `${fmtDate(g.event_date)} ${new Date(t(g.event_date)).getFullYear()}`, g.target && `target ${esc(g.target)}`, `${(LEVELS[g.level] || LEVELS.balanced).label.toLowerCase()} level`].filter(Boolean).join(' · ')}</p>` +
         (readOnly ? '' : '<div class="btns"><button type="button" id="goal-edit">Change race</button></div>');
     }
     const edit = $('goal-edit');
@@ -36,6 +36,7 @@ async function startGoal() {
       <label>Distance<select name="distance">${opts}</select></label>
       <label>Race day<input name="event_date" type="date" required value="${esc(g.event_date || '')}"></label>
       <label>Target time (optional)<input name="target" inputmode="numeric" placeholder="h:mm:ss" value="${esc(g.target || '')}"></label>
+      <label>Training level<select name="level">${Object.entries(LEVELS).map(([k, l]) => `<option value="${k}"${(g.level || 'balanced') === k ? ' selected' : ''}>${l.label}</option>`).join('')}</select></label>
       <div class="btns"><button type="submit" class="primary">Save</button>${current ? '<button type="button" id="goal-cancel">Cancel</button><button type="button" id="goal-clear">Remove race</button>' : ''}</div>
     </form>${msg ? `<p class="msg">${esc(msg)}</p>` : ''}`;
     const f = $('goal-f');
@@ -47,7 +48,7 @@ async function startGoal() {
       if (target && parseTarget(target, v.distance) === null) { form('Write the target as h:mm:ss, for example 1:45:00.'); return; }
       f.querySelector('button[type=submit]').disabled = true;
       try {
-        await ref.set({ race, distance: v.distance, event_date: v.event_date, target, updated_at: new Date().toISOString() });
+        await ref.set({ race, distance: v.distance, event_date: v.event_date, target, level: LEVELS[v.level] ? v.level : 'balanced', updated_at: new Date().toISOString() });
         editing = false;
         summary();
       } catch (err) {

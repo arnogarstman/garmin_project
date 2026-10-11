@@ -107,6 +107,13 @@ section>*{min-width:0}
 .goalform button.primary{background:var(--c1);border-color:var(--c1);color:#fff}
 .goalform .msg{font-size:.85rem;color:var(--warn)}
 .plan{display:grid;gap:14px}
+.potential{display:grid;gap:10px}
+.potintro{border:1px dashed var(--grid);padding:14px 16px;display:grid;gap:8px;justify-items:start}
+.potcard .tiles{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+.potcard .why{color:var(--ink);font-size:.92rem}
+.potcard.stale>*:not(.head):not(.btns){opacity:.6}
+.potcard .btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.livebtn.primary{background:var(--c1);border-color:var(--c1);color:#fff}
 .pstrip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(64px,1fr);gap:4px;overflow-x:auto;padding-bottom:4px}
 .pw{display:grid;justify-items:center;gap:1px;padding:6px 4px;border:1px solid var(--grid);border-radius:4px;background:var(--bg);color:var(--ink2);font:.68rem var(--mono);cursor:pointer}
 .pw b{font:600 .85rem var(--display);color:var(--ink)}
@@ -119,23 +126,15 @@ section>*{min-width:0}
 .phead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;padding:12px 16px 4px}
 .phead .tot{font:500 .78rem var(--mono);color:var(--ink2)}
 .pweek .note{padding:0 16px 10px;font-size:.88rem}
-.prow{display:grid;grid-template-columns:80px repeat(3,minmax(0,1fr));gap:6px 18px;padding:10px 16px;border-top:1px solid var(--grid);border-left:3px solid transparent}
+.prow{display:grid;grid-template-columns:80px repeat(2,minmax(0,1fr));gap:6px 18px;padding:10px 16px;border-top:1px solid var(--grid);border-left:3px solid transparent}
 .prow h4{margin:0;font:600 1rem var(--display)}
 .prow h4 .km{font:500 .78rem var(--mono);color:var(--ink2);margin-left:6px}
 .prow p{font-size:.88rem}
 .prow .why{color:var(--ink2);font-size:.82rem;margin-top:4px}
 .prow>div{min-width:0}
 .prow>div:nth-child(3){border-left:3px solid var(--c3);padding-left:10px}
-.prow>div:nth-child(4){border-left:3px solid var(--c5);padding-left:10px}
+.phdr span:nth-child(3){padding-left:13px}
 .phdr{font:500 .68rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);background:var(--panel);padding-block:8px}
-.phdr span:nth-child(3){padding-left:13px}.phdr span:nth-child(4){padding-left:13px}
-.prow>div:empty{border-left:0}
-.prow>div:empty::before{display:none!important}
-.cbar{display:grid;gap:6px;justify-items:start;padding:4px 16px 12px}
-.csum{color:var(--ink);font-size:.9rem;max-width:80ch}
-.cday{display:grid;gap:4px;justify-items:start}
-.cday .cwork{color:var(--ink);font-weight:600}
-.cday.stale{opacity:.5}
 .prow .why b{font-weight:600}
 .prow.intervals,.prow.threshold,.prow.race-pace{border-left-color:var(--c6)}
 .prow.long{border-left-color:var(--c5)}.prow.easy,.prow.strides,.prow.shakeout{border-left-color:var(--c2)}
@@ -144,7 +143,7 @@ section>*{min-width:0}
 .prow.past{opacity:.7}
 .pd{display:grid;align-content:start;gap:2px;font-size:.8rem;color:var(--ink2)}
 .pd b{font:600 .95rem var(--display);color:var(--ink)}
-@media (max-width:760px){.prow{grid-template-columns:64px minmax(0,1fr)}.prow>div:nth-child(n+3){grid-column:2}.prow>div:nth-child(2)::before{content:"This page";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.prow>div:nth-child(3)::before{content:"Garmin Coach";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.prow>div:nth-child(4)::before{content:"Consensus";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.phdr{display:none}}
+@media (max-width:760px){.prow{grid-template-columns:64px minmax(0,1fr)}.prow>div:nth-child(n+3){grid-column:2}.prow>div:nth-child(2)::before{content:"This page";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.prow>div:nth-child(3)::before{content:"Garmin Coach";display:block;font:500 .64rem var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}.phdr{display:none}}
 .pill.crit{color:var(--crit);background:color-mix(in srgb,var(--crit) 14%,transparent)}
 .coach{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px}
 .card{border:1px solid var(--grid);border-top:3px solid var(--grid);padding:14px 16px;display:grid;gap:8px;align-content:start;min-width:0}
@@ -294,6 +293,7 @@ footer{font-size:.8rem;color:var(--muted)}
 <section>
   <div class="sechead"><h2>Toward the goal</h2><span class="eyebrow" id="goaleb"></span></div>
   <div class="racebox"><div id="race"></div><div id="goalform" class="goalform"></div></div>
+  <div class="potential" id="potential"></div>
   <div class="grid2">
     <div class="chart">
       <h3 id="pred-title">Half marathon prediction</h3>
