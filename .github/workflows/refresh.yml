@@ -41,19 +41,36 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
+      # Fail in seconds on a missing secret. Without MOTHERDUCK_TOKEN, DuckDB would otherwise
+      # wait for an interactive MotherDuck login.
+      - name: Check the secrets
+        env:
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+          SECRETS_TOKEN: ${{ secrets.SECRETS_TOKEN }}
+        run: |
+          missing=""
+          [ -n "$MOTHERDUCK_TOKEN" ] || missing="$missing MOTHERDUCK_TOKEN"
+          [ -n "$GARMIN_TOKENS" ] || missing="$missing GARMIN_TOKENS"
+          [ -n "$SECRETS_TOKEN" ] || missing="$missing SECRETS_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. See \"Scheduled refresh\" in the README."
+            exit 1
+          fi
+
       - run: uv sync --locked
 
       - name: Restore the Garmin session
         env:
           GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
         run: |
-          if [ -z "$GARMIN_TOKENS" ]; then
-            echo "::error::Secret GARMIN_TOKENS is not set. Create it with: uv run garmin-tokens export | gh secret set GARMIN_TOKENS"
-            exit 1
-          fi
           umask 077
           mkdir -p "$GARMIN_TOKEN_DIR"
           printf '%s' "$GARMIN_TOKENS" > "$GARMIN_TOKEN_DIR/garmin_tokens.json"
+
+      # Every connection (Garmin with the saved session, MotherDuck, dbt) in one overview,
+      # before the pipeline starts.
+      - name: Check the connections
+        run: uv run doctor
 
       - name: Run the pipeline
         env:

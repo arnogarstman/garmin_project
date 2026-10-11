@@ -29,7 +29,7 @@ Senior data engineer. Skip beginner explanations and apply proper engineering pr
 - `src/garminreader/db.py`: the only way to open the database (`DATABASE` in config): a local DuckDB file, or MotherDuck as `md:<name>` with `MOTHERDUCK_TOKEN`.
 - `transform/`: dbt project. `staging/<source>/` tables (newest load wins), `marts/` tables (`fct_*`, `rpt_*`).
 - `src/garminreader/orchestration/`: Dagster assets (raw partitioned by day, dbt via dagster-dbt) and checks.
-- `.github/workflows/`: CI (`ci.yml`) and the daily run on real data into MotherDuck (`daily.yml`, secrets `MOTHERDUCK_TOKEN`, `GARMIN_EMAIL`, `GARMIN_PASSWORD`, optional `GARMINTOKENS`).
+- `.github/workflows/`: CI (`ci.yml`) and the daily refresh against MotherDuck (`refresh.yml`, see "Scheduled refresh" in the README: secrets `MOTHERDUCK_TOKEN`, `GARMIN_TOKENS` and `SECRETS_TOKEN`; it checks the connections with `uv run doctor`, resumes the saved Garmin session, never logs in with a password, and writes a refreshed session back).
 - `src/garminreader/dashboard/`: Streamlit app. `queries.py` is its only database access and reads marts only.
 - `src/garminreader/config.py`: all settings, from `.env` (see `.env.example`).
 - `src/garminreader/snapshot/`: `uv run snapshot` renders the marts into one self-contained HTML page (template `page.html` + `page.js`, `plan.js` for the training plan, `goal.js` for the race goal form, `live.js` to boot, live or embedded), for hosting as a static page such as a Claude artifact. Reads marts only.

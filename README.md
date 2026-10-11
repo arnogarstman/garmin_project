@@ -77,7 +77,7 @@ Without `--since`, ingest resumes from the last load minus one day, because Garm
 
 It never logs in with a password. A password login from a cloud runner is what makes Garmin ask for MFA, show a captcha or lock the account, so the run only resumes a session you created on your own machine, and fails clearly (with an email from GitHub) when that session stops working.
 
-One-time setup, from a clone with your `.env`:
+One-time setup, from a clone with your `.env`. Do not add `GARMIN_EMAIL` or `GARMIN_PASSWORD` as repository secrets: without them no workflow can even try a password login.
 
 ```sh
 uv run garmin-tokens login                                  # password and MFA code, on your machine
