@@ -58,12 +58,19 @@ QUERIES: dict[str, str] = {
         from marts.fct_activities
         where activity_date > current_date - interval {days} day
     """,
-    "recent": """
-        select activity_date, activity_name, activity_type, round(distance_km, 2) as km,
-               round(duration_min, 1) as min, round(pace_min_per_km, 2) as pace, avg_hr
+    "history": """
+        select activity_date, hour(started_at_local) as hr, activity_name as name, activity_type as type,
+               round(distance_km, 1) as km, round(duration_min) as min, round(pace_min_per_km, 2) as pace,
+               round(avg_hr) as avg_hr, round(training_load) as load, round(elevation_gain_m) as elev
         from marts.fct_activities
-        order by started_at_local desc
-        limit 8
+        where activity_date > current_date - interval {days} day
+        order by started_at_local
+    """,
+    "body": """
+        select calendar_date as d, round(weight_kg, 1) as weight
+        from marts.fct_daily_body
+        where calendar_date > current_date - interval {days} day
+        order by 1
     """,
     "runs": """
         select activity_date, activity_name, round(distance_km, 1) as km, round(duration_min, 1) as min,
