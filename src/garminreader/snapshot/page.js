@@ -72,7 +72,7 @@ function parseTarget(text, distance) {
 let pageGoal = null;
 function raceGoal(D) {
   const g = pageGoal;
-  if (g && RACES[g.distance]) return { name: g.race || RACES[g.distance].label, distance: g.distance, date: g.event_date || null, target: g.target || '', targetS: parseTarget(g.target, g.distance) };
+  if (g && RACES[g.distance]) return { name: g.race || RACES[g.distance].label, distance: g.distance, date: g.event_date || null, target: g.target || '', targetS: parseTarget(g.target, g.distance), level: g.level || 'balanced' };
   const f = D.goal;
   if (!f) return null;
   const text = `${f.goal} ${f.target || ''}`;
@@ -477,7 +477,8 @@ function renderPage(D) {
           const gap = proj - G.targetS, perWeek = weeks ? Math.max(0, now - G.targetS) / Math.max(weeks, 1) : null;
           if (gap <= 0) { status = 'good'; label = 'on track'; body = `The projection beats your ${hms(G.targetS)} target by ${hms(-gap)}. Your prediction is ${trendTxt}; protect it with consistent weeks and a proper taper.`; }
           else if (gap <= G.targetS * 0.02) { status = 'warn'; label = 'within reach'; body = `${hms(gap)} short of ${hms(G.targetS)}. You need about ${hms(perWeek)} a week of improvement; the prediction is ${trendTxt}. Threshold work and a steady long run close gaps like this.`; }
-          else { status = 'crit'; label = 'ambitious'; body = `${hms(gap)} short of ${hms(G.targetS)}: that needs ${hms(perWeek)} a week, more than predictions usually move. Consider ${hms(proj)} as the realistic goal, or a later race.`; }
+          else if (G.level === 'ambitious') { status = 'warn'; label = 'stretch'; body = `${hms(gap)} beyond where Garmin's trend alone gets you (${hms(proj)}): about ${hms(perWeek)} a week of improvement. That is the gap the Ambitious level trains for; watch the prediction close it week by week.`; }
+          else { status = 'crit'; label = 'stretch'; body = `${hms(gap)} short of ${hms(G.targetS)}: that needs ${hms(perWeek)} a week, more than predictions usually move. Train at the Ambitious level, take ${hms(proj)} as the realistic goal, or pick a later race.`; }
         } else body = `Your prediction is ${trendTxt}. Add a target time to see whether it is within reach.`;
         const tile = (k, v, sub) => `<div class="tile"><span class="eyebrow">${k}</span><span class="v">${v}</span><span class="s">${sub}</span></div>`;
         $('race').innerHTML = `<div class="card ${status}"><div class="head"><span class="eyebrow">${esc(G.name)}${G.date ? ` · ${fmtDate(G.date)} ${new Date(t(G.date)).getFullYear()}` : ''} · ${phase}${daysOut !== null && daysOut >= 0 ? ` · ${daysOut} days to go` : ''}</span><span class="pill ${status}">${label}</span></div><h3>${verdict}</h3>` +

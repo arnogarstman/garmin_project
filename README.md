@@ -24,12 +24,14 @@ recovery, how it compares with similar runs, and what to do next); and a coach's
 intensity balance, aerobic efficiency, load progression, long runs, endurance, sleep, consistency,
 training paces and next week.
 
-**Training.** A race goal with a race-day projection from the trend in Garmin's predictions,
-charts for predictions, volume, VO2 max and training load, a week-by-week plan to race day with a
-reason for every session, and a review of last week. When you follow a Garmin Coach plan, the week
-shows three columns per day: this page's session, Garmin Coach's (workout, duration, pace, training
-effect, done or missed), and Claude's consensus, which picks Garmin's, the page's, a blend or rest
-for each coming day and argues why from your recovery, load and goal.
+**Training.** A race goal with a race-day projection from the trend in Garmin's predictions and a
+training level (Steady, Balanced or Ambitious: how fast volume grows and how much quality work the
+plan holds); Claude's read on your potential, which suggests a target time and level from your
+fitness and training data and applies them with one click; charts for predictions, volume, VO2 max
+and training load; a week-by-week plan to race day with a reason for every session; and a review
+of last week. When you follow a Garmin Coach plan, the week
+shows two columns per day: this page's session, and Garmin Coach's (workout, duration, pace,
+training effect, done or missed).
 
 ![The Training tab: race goal with projection, prediction and volume charts](docs/images/dashboard-training.png)
 

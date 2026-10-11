@@ -11,11 +11,11 @@ LIVE_MARKER = "/*LIVE*/null"
 APP_MARKER = "/*APP*/"
 
 # The page scripts, in load order: page.js renders, review.js adds the workout reviews, plan.js the
-# training plan, consensus.js Claude's verdict between that plan and Garmin Coach (its helpers are
-# used when plan.js renders), meals.js the weight goal and meal plan (after plan.js: it uses the
+# training plan with Garmin Coach's workouts beside it and its levels, potential.js Claude's read on
+# what is within reach (rendered by plan.js), meals.js the weight goal and meal plan (after plan.js: it uses the
 # planned sessions), history.js the History tab (after meals.js, whose helpers it uses), goal.js the
 # race form, tabs.js the tabs, live.js boots the page (live through a connector, or embedded data).
-SCRIPTS = ("page.js", "review.js", "plan.js", "consensus.js", "meals.js", "history.js", "goal.js", "tabs.js", "live.js")
+SCRIPTS = ("page.js", "review.js", "plan.js", "potential.js", "meals.js", "history.js", "goal.js", "tabs.js", "live.js")
 
 # The claude.ai connector and tool a live page queries through; declare them in the
 # artifact's `mcp` capability when publishing.
