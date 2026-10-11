@@ -68,3 +68,11 @@ models:
 
   - name: stg_garmin__device_syncs
     description: Device upload time as seen at each ingest run.
+
+  - name: stg_garmin__coach_workouts
+    description: Workouts of Garmin Coach adaptive plans, one row per workout, in its newest known state.
+    columns:
+      - name: workout_uuid
+        data_tests: [unique, not_null]
+      - name: calendar_date
+        data_tests: [not_null]

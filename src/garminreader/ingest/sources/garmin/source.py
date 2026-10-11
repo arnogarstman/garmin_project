@@ -6,6 +6,11 @@ stored one record per activity, keyed by activity_id, so an activity seen
 again in a later window is recognised as unchanged. Snapshot endpoints (the
 device, as a freshness signal, and the heart rate zones) are taken once per
 run; the loader only stores them when they change, which builds their history.
+
+Garmin Coach: the calendar of the current month shows the workouts of an adaptive Coach plan
+(item type fbtAdaptiveWorkout), and each plan it names is fetched in full: its task list holds the
+current week's workouts with pace, estimated duration, training effect and status. Two calls a run,
+stored like the snapshots, so past weeks stay in the raw history.
 """
 
 import logging
@@ -87,6 +92,24 @@ class GarminSource:
                 fetch = partial(call, api, day.isoformat())
                 yield from self._call(endpoint, fetch, {"date": day.isoformat()})
             day += timedelta(days=1)
+        yield from self._coach(api, end)
+
+    def _coach(self, api: Garmin, today: date) -> Iterator[RawRecord]:
+        """The calendar of the current month, and every adaptive Coach plan it schedules workouts for."""
+        params = {"year": today.year, "month": today.month}
+        calendar = self._fetch("calendar", partial(api.get_scheduled_workouts, today.year, today.month), params)
+        if calendar is _NOT_FOUND:
+            return
+        yield RawRecord("calendar", calendar, params)
+        items = calendar.get("calendarItems") if isinstance(calendar, dict) else None
+        plan_ids = {
+            item["trainingPlanId"]
+            for item in items or []
+            if item.get("itemType") == "fbtAdaptiveWorkout" and item.get("trainingPlanId")
+        }
+        for plan_id in sorted(plan_ids):
+            fetch = partial(api.get_adaptive_training_plan_by_id, plan_id)
+            yield from self._call("adaptive_training_plan", fetch, {"plan_id": plan_id})
 
     def _call(self, endpoint: str, fetch: Callable[[], Any], params: dict[str, Any]) -> Iterator[RawRecord]:
         """Yield the response as one record (nothing if it was a 404)."""

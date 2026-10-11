@@ -157,6 +157,17 @@ function upcomingSessions(n = 7) {
   return out;
 }
 
+// Garmin Coach's workouts for a day (marts.fct_coach_workouts), shown beside the page's own session.
+const coachOn = date => (lastD?.coach || []).filter(c => String(c.d).slice(0, 10) === date && !c.rest);
+function coachLine(date, past) {
+  return coachOn(date).map(c => {
+    const done = /COMPLETE/.test(c.status || '') && !/NOT/.test(c.status || '');
+    const parts = [num(c.min) && c.min > 0 ? `${Math.round(c.min)} min` : '', c.description, lower(c.effect)].filter(Boolean).map(esc);
+    const state = done ? '<span class="pill good">done</span>' : past ? '<span class="pill warn">missed</span>' : '';
+    return `<p class="gcoach"><span class="eyebrow">Garmin Coach</span><b>${esc(c.name)}</b>${parts.length ? ` · ${parts.join(' · ')}` : ''} ${state}</p>`;
+  }).join('');
+}
+
 function renderPlan(ctx) {
   planCtx = ctx;
   const plan = buildPlan(ctx);
@@ -178,18 +189,20 @@ function renderPlan(ctx) {
     const when = `<div class="pd"><b>${DOW[d]}</b><span>${fmtDate(date)}</span>${date === today ? '<span class="pill good">today</span>' : ''}</div>`;
     if (past) {
       // The plan starts now: past days show what was actually run.
-      rows += `<div class="prow past">${when}<div><h4>${done.length ? 'Done' : 'No run'}</h4><p>${done.map(r => `${esc(r.activity_name)}: ${r.km.toFixed(1)} km${num(r.pace) ? ` at ${pace(r.pace)} /km` : ''}`).join('; ')}</p></div><div></div></div>`;
+      rows += `<div class="prow past">${when}<div><h4>${done.length ? 'Done' : 'No run'}</h4><p>${done.map(r => `${esc(r.activity_name)}: ${r.km.toFixed(1)} km${num(r.pace) ? ` at ${pace(r.pace)} /km` : ''}`).join('; ')}</p>${coachLine(date, true)}</div><div></div></div>`;
       continue;
     }
     let sess = s;
     // Under-recovered today: today's hard session becomes an easy run.
     if (s && date === today && sig.recovery === 'crit' && !['easy', 'long', 'race', 'shakeout'].includes(s.kind)) sess = { ...s, kind: 'easy', title: 'Easy run (swapped)', detail: `Recovery is low today: ${Math.round(s.km)} km easy instead of ${s.title.toLowerCase()}; do the session later in the week if you feel fresh` };
     rows += sess
-      ? `<div class="prow ${sess.kind}">${when}<div><h4>${esc(sess.title)} <span class="km">${sess.kind === 'race' ? plan.race.label : `${Math.round(sess.km)} km`}</span></h4><p>${esc(sess.detail)}</p></div><p class="why"><b>Why:</b> ${esc(sessionWhy(sess, plan, w, ctx))}</p></div>`
-      : `<div class="prow rest">${when}<div><h4>Rest</h4><p>Off, or 20–30 min of easy cycling or mobility.</p></div><p class="why"><b>Why:</b> ${esc(restWhy(rests++, ctx))}</p></div>`;
+      ? `<div class="prow ${sess.kind}">${when}<div><h4>${esc(sess.title)} <span class="km">${sess.kind === 'race' ? plan.race.label : `${Math.round(sess.km)} km`}</span></h4><p>${esc(sess.detail)}</p>${coachLine(date, false)}</div><p class="why"><b>Why:</b> ${esc(sessionWhy(sess, plan, w, ctx))}</p></div>`
+      : `<div class="prow rest">${when}<div><h4>Rest</h4><p>Off, or 20–30 min of easy cycling or mobility.</p>${coachLine(date, false)}</div><p class="why"><b>Why:</b> ${esc(restWhy(rests++, ctx))}</p></div>`;
   }
   const total = [...sessions.values()].reduce((s, x) => s + (x.kind === 'race' ? 0 : x.km), 0);
-  $('plan').innerHTML = `<p>${head}</p><div class="pstrip" role="group" aria-label="Weeks">${strip}</div>` +
+  const gc = (lastD?.coach || []).find(c => c.plan_name);
+  const coachHead = gc ? `<p class="cap">Next to each day: what your Garmin Coach plan (${esc(gc.plan_name)}${gc.plan_end_date ? `, to ${fmtDate(String(gc.plan_end_date))} ${String(gc.plan_end_date).slice(0, 4)}` : ''}) scheduled. Garmin only shares the current week of it.</p>` : '';
+  $('plan').innerHTML = `<p>${head}</p>${coachHead}<div class="pstrip" role="group" aria-label="Weeks">${strip}</div>` +
     `<div class="pweek"><div class="phead"><h3>Week ${w.i + 1} · ${w.phase === 'race' ? 'Race week' : w.down ? 'Lighter week' : w.phase[0].toUpperCase() + w.phase.slice(1)}</h3><span class="tot">${Math.round(total)} km${w.long ? ` · long run ${Math.round(w.long)} km` : ''}</span></div>` +
     `<p class="note">${w.down ? 'A lighter week: every fourth week drops about 25% so the three before it can sink in. ' : ''}${PHASE_NOTE[w.phase]}</p>${rows}</div>`;
   for (const b of $('plan').querySelectorAll('.pw')) b.onclick = () => { planWeek = +b.dataset.w; renderPlan(ctx); };
