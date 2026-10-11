@@ -30,6 +30,14 @@ p{margin:0;max-width:66ch;color:var(--ink2)}
 header{display:grid;gap:12px}
 .demo{display:inline-flex;gap:8px;align-items:center;font:500 .75rem var(--mono);color:var(--ink2);border:1px solid var(--grid);border-radius:999px;padding:3px 10px;width:max-content;max-width:100%}
 .demo i{width:8px;height:8px;border-radius:50%;background:var(--c3);display:block}
+.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;overflow-x:auto;background:var(--bg);border-bottom:1px solid var(--grid);margin-block:-16px;padding-top:8px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{font:600 1rem var(--display);color:var(--ink2);background:none;border:0;border-bottom:3px solid transparent;padding:8px 14px 9px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--c1)}
+.tabs button:hover{color:var(--ink)}
+.tabs button:focus-visible{outline:2px solid var(--c1);outline-offset:-2px}
+.panel{display:grid;gap:40px;min-width:0}
+.panel[hidden]{display:none}
 section{display:grid;gap:16px;min-width:0}
 section>*{min-width:0}
 .sechead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px;border-bottom:1px solid var(--grid);padding-bottom:8px}
@@ -209,6 +217,9 @@ footer{font-size:.8rem;color:var(--muted)}
   <p class="livestate" id="livestate" role="status" hidden></p><button class="livebtn" id="livebtn" type="button" hidden>Run the query</button>
 </header>
 
+<nav class="tabs" role="tablist" aria-label="Sections"><button type="button" role="tab" id="tab-today" aria-controls="panel-today" data-tab="today">Today</button><button type="button" role="tab" id="tab-training" aria-controls="panel-training" data-tab="training">Training</button><button type="button" role="tab" id="tab-nutrition" aria-controls="panel-nutrition" data-tab="nutrition">Nutrition</button><button type="button" role="tab" id="tab-history" aria-controls="panel-history" data-tab="history">History</button><button type="button" role="tab" id="tab-about" aria-controls="panel-about" data-tab="about">About</button></nav>
+
+<div class="panel" role="tabpanel" id="panel-today" aria-labelledby="tab-today">
 <section>
   <div class="sechead"><h2>Today</h2><span class="eyebrow">marts.rpt_current_status</span></div>
   <div class="tiles" id="tiles"></div>
@@ -220,15 +231,12 @@ footer{font-size:.8rem;color:var(--muted)}
 </section>
 
 <section>
-  <div class="sechead"><h2>Week in review</h2><span class="eyebrow">Last full week, Monday to Sunday</span></div>
-  <div class="review" id="review"></div>
-</section>
-
-<section>
   <div class="sechead"><h2>Coach's read</h2><span class="eyebrow">Recovery · training · planning</span></div>
   <div class="coach" id="coach"></div>
 </section>
+</div>
 
+<div class="panel" role="tabpanel" id="panel-training" aria-labelledby="tab-training">
 <section>
   <div class="sechead"><h2>Toward the goal</h2><span class="eyebrow" id="goaleb"></span></div>
   <div class="racebox"><div id="race"></div><div id="goalform" class="goalform"></div></div>
@@ -269,13 +277,22 @@ footer{font-size:.8rem;color:var(--muted)}
 </section>
 
 <section>
+  <div class="sechead"><h2>Week in review</h2><span class="eyebrow">Last full week, Monday to Sunday</span></div>
+  <div class="review" id="review"></div>
+</section>
+</div>
+
+<div class="panel" role="tabpanel" id="panel-nutrition" aria-labelledby="tab-nutrition">
+<section>
   <div class="sechead"><h2>Meal plan</h2><span class="eyebrow">Weight goal · marts.fct_daily_energy</span></div>
   <div id="mealstats"></div>
   <div id="weightform" class="goalform"></div>
   <div id="mealbudget"></div>
   <div class="mealplan" id="mealplan"></div>
 </section>
+</div>
 
+<div class="panel" role="tabpanel" id="panel-history" aria-labelledby="tab-history">
 <section>
   <div class="sechead"><h2>Run calendar</h2><span class="eyebrow">marts.fct_activities</span></div>
   <div class="calkeys cal" id="calkeys"></div>
@@ -286,7 +303,9 @@ footer{font-size:.8rem;color:var(--muted)}
   <div class="sechead"><h2>Recent activities</h2><span class="eyebrow">marts.fct_activities</span></div>
   <div class="tbl"><table id="recent"><thead><tr><th>Date</th><th>Activity</th><th class="n">Distance</th><th class="n">Time</th><th class="n">Pace</th><th class="n">Avg HR</th></tr></thead><tbody></tbody></table></div>
 </section>
+</div>
 
+<div class="panel" role="tabpanel" id="panel-about" aria-labelledby="tab-about">
 <section>
   <div class="sechead"><h2>How it works</h2><span class="eyebrow">src/garminreader · transform/</span></div>
   <div class="flow">
@@ -309,6 +328,7 @@ footer{font-size:.8rem;color:var(--muted)}
   <div class="sechead"><h2>Data health</h2><span class="eyebrow">marts.rpt_metric_lag</span></div>
   <div class="health" id="health"></div>
 </section>
+</div>
 
 <footer id="footer"></footer>
 </div>
