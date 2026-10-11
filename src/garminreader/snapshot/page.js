@@ -620,12 +620,26 @@ function renderPage(D) {
       totals.set(m, { n: tot.n + 1, km: tot.km + (r.km || 0) });
     }
     const bubble = km => `<span class="bub" style="--r:${Math.sqrt(Math.max(km || 0, 0.25)).toFixed(3)}"></span>`;
+    // Weigh-ins: each day's weight with its change since the previous weigh-in, and each month's
+    // change from its first to its last weigh-in. A change toward the weight goal (meals.js) is
+    // marked good, away from it marked warn; without a goal the change stays neutral.
+    const weights = (D.body || []).filter(r => num(r.weight)).map(r => [r.d.slice(0, 10), r.weight]).sort();
+    const wByDay = new Map(), wMonth = new Map();
+    weights.forEach(([k, w], i) => {
+      wByDay.set(k, { w, delta: i ? w - weights[i - 1][1] : null });
+      const m = wMonth.get(k.slice(0, 7)) || { first: w, last: w };
+      m.last = w; wMonth.set(k.slice(0, 7), m);
+    });
+    const goalDir = typeof weightGoal !== 'undefined' && weightGoal && weights.length ? Math.sign(weightGoal.target_kg - weights[weights.length - 1][1]) : 0;
+    const tone = d => !goalDir || Math.abs(d) < 0.05 ? 'flat' : Math.sign(d) === goalDir ? 'good' : 'warn';
+    const signedKg = d => `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(1)}`;
     const monday = d => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7);
     // Every month of the past year, with or without runs, and further back when runs go further back.
     const last = new Date(x1), today = iso(last), yearAgo = new Date(last.getFullYear(), last.getMonth() - 11, 1);
     const firstRun = runs.length ? new Date(t(runs[0].activity_date)) : yearAgo;
     const start = firstRun < yearAgo ? new Date(firstRun.getFullYear(), firstRun.getMonth(), 1) : yearAgo;
-    $('calkeys').innerHTML = runs.length ? 'Bubble area is proportional to distance:' + [5, 10, 21.1].map(km => `<span>${bubble(km)}${km} km</span>`).join('') : '';
+    $('calkeys').innerHTML = (runs.length ? 'Bubble area is proportional to distance:' + [5, 10, 21.1].map(km => `<span>${bubble(km)}${km} km</span>`).join('') : '') +
+      (weights.length ? `<span class="wkey"><span class="wt">80.4<i class="${goalDir ? 'good' : 'flat'}">−0.3</i></span>weight and change since the last weigh-in${goalDir ? `, green toward your ${weightGoal.target_kg.toFixed(1)} kg goal` : ''}</span>` : '');
     const headed = new Set();
     let html = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<span class="dow">${d}</span>`).join('');
     for (let w = monday(last); w >= monday(start); w = new Date(w.getFullYear(), w.getMonth(), w.getDate() - 7)) {
@@ -645,7 +659,8 @@ function renderPage(D) {
           headed.add(m);
           if (a > col) html += `<span class="mgap" style="grid-column:span ${a - col}"></span>`;
           const tot = totals.get(m) || { n: 0, km: 0 }, [y, mo] = m.split('-').map(Number);
-          html += `<div class="mhead" style="grid-column:${a + 1} / span ${b - a + 1}"><h3>${MON[mo - 1]} ${y}</h3><span class="tot">${tot.n} run${tot.n === 1 ? '' : 's'} · ${tot.km.toFixed(1)} km</span></div>`;
+          const wm = wMonth.get(m), wmTxt = wm && wm.last !== wm.first ? ` · <i class="${tone(wm.last - wm.first)}">${signedKg(wm.last - wm.first)} kg</i>` : '';
+          html += `<div class="mhead" style="grid-column:${a + 1} / span ${b - a + 1}"><h3>${MON[mo - 1]} ${y}</h3><span class="tot">${tot.n} run${tot.n === 1 ? '' : 's'} · ${tot.km.toFixed(1)} km${wmTxt}</span></div>`;
           col = b + 1;
         }
         if (col < 7) html += `<span class="mgap" style="grid-column:span ${7 - col}"></span>`;
@@ -653,10 +668,12 @@ function renderPage(D) {
       for (const d of week) {
         if (d < start || d > last) { html += '<span class="day pad"></span>'; continue; }
         const key = iso(d), rs = byDay.get(key) || [];
-        const tip = rs.map(r => `${r.activity_name}: ${num(r.km) ? r.km.toFixed(1) + ' km' : ''}${num(r.min) ? ' in ' + hms(r.min * 60) : ''}${num(r.pace) ? ', ' + pace(r.pace) + ' /km' : ''}`).join('\n');
+        const wd = wByDay.get(key);
+        const tip = (wd ? [`Weight ${wd.w.toFixed(1)} kg${num(wd.delta) ? ` (${signedKg(wd.delta)} kg since the last weigh-in)` : ''}`] : []).concat(rs.map(r => `${r.activity_name}: ${num(r.km) ? r.km.toFixed(1) + ' km' : ''}${num(r.min) ? ' in ' + hms(r.min * 60) : ''}${num(r.pace) ? ', ' + pace(r.pace) + ' /km' : ''}`)).join('\n');
         const cls = ['day', d.getMonth() % 2 ? 'alt' : '', d.getDate() === 1 ? 'first' : '', key === today ? 'today' : ''].filter(Boolean).join(' ');
         html += `<div class="${cls}"${tip ? ` title="${esc(tip)}"` : ''}><span class="dn">${d.getDate() === 1 ? `1 ${MON[d.getMonth()]}` : d.getDate()}</span>` +
-          (rs.length ? '<div class="runs">' + rs.map(r => `<div class="run">${bubble(r.km)}<span class="km">${num(r.km) ? r.km.toFixed(1) : '–'}<small>km</small></span><span class="nm">${esc(r.activity_name)}</span></div>`).join('') + '</div>' : '') + '</div>';
+          (rs.length ? '<div class="runs">' + rs.map(r => `<div class="run">${bubble(r.km)}<span class="km">${num(r.km) ? r.km.toFixed(1) : '–'}<small>km</small></span><span class="nm">${esc(r.activity_name)}</span></div>`).join('') + '</div>' : '') +
+          (wd ? `<span class="wt">${wd.w.toFixed(1)}${num(wd.delta) ? `<i class="${tone(wd.delta)}">${signedKg(wd.delta)}</i>` : ''}</span>` : '') + '</div>';
       }
     }
     $('cal').innerHTML = `<div class="mgrid">${html}</div>`;

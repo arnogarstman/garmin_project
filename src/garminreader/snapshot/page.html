@@ -237,6 +237,12 @@ footer{font-size:.8rem;color:var(--muted)}
 .day .run{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;max-width:100%}
 .day .km{font:600 .9rem/1.1 var(--display);font-variant-numeric:tabular-nums;color:var(--ink)}
 .day .km small{font-size:.7rem;color:var(--ink2);font-weight:500;margin-left:2px}
+.day .wt{align-self:flex-end;margin-top:auto;display:flex;gap:4px;align-items:baseline;font:500 .68rem var(--mono);color:var(--ink2);font-variant-numeric:tabular-nums}
+.wt i,.mhead .tot i{font-style:normal}
+.wt i.good,.mhead .tot i.good{color:var(--good)}.wt i.warn,.mhead .tot i.warn{color:var(--warn)}.wt i.flat,.mhead .tot i.flat{color:var(--muted)}
+.wkey{display:inline-flex;gap:8px;align-items:baseline}
+.wkey .wt{border:1px solid var(--grid);border-radius:4px;padding:1px 5px}
+@media (max-width:640px){.day .wt{font-size:.56rem;flex-direction:column;gap:0;align-items:flex-end}}
 .day .nm{font-size:.7rem;line-height:1.2;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 @media (max-width:640px){.cal{--k:7.4px}.day{min-height:66px;padding:2px}.day .runs{gap:2px}.day .nm{display:none}.day .km{font-size:.72rem}.day .km small{display:none}.mgrid .dow{padding:0;text-align:center}.mhead{padding-top:12px}.mhead h3{font-size:.9rem}.mhead .tot{font-size:.62rem}}
 .livestate{font-size:.88rem;border-left:3px solid var(--c1);padding:4px 10px}
@@ -384,7 +390,7 @@ footer{font-size:.8rem;color:var(--muted)}
 <section>
   <div class="sechead"><h2>Activity log</h2><span class="eyebrow">Every activity in the period</span></div>
   <div id="histlog"></div>
-  <details class="calbox"><summary>Run calendar, day by day</summary>
+  <details class="calbox" open><summary>Calendar: runs and weight, day by day</summary>
     <div class="calkeys cal" id="calkeys"></div>
   <div class="cal" id="cal"></div>
 </details>
