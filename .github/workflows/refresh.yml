@@ -97,7 +97,9 @@ jobs:
           PARTITION: ${{ inputs.partition }}
         run: uv run pipeline ${PARTITION:+--partition "$PARTITION"}
 
-      # Also after a failed run: the session may have been refreshed before the failure.
+      # Also after a failed run: the session may have been refreshed before the failure. Only a new
+      # refresh token is worth saving: the access token is short-lived and every run mints a fresh
+      # one from the refresh token, so a changed access token alone leaves the secret valid.
       - name: Save a refreshed Garmin session
         if: always()
         env:
@@ -105,16 +107,20 @@ jobs:
           GH_TOKEN: ${{ secrets.SECRETS_TOKEN }}
         run: |
           file="$GARMIN_TOKEN_DIR/garmin_tokens.json"
-          if [ ! -s "$file" ] || [ "$(cat "$file")" = "$GARMIN_TOKENS" ]; then
-            echo "Garmin session unchanged."
+          refresh_token() { python3 -c 'import json, sys; print(json.loads(sys.stdin.read() or "{}").get("di_refresh_token") or "")'; }
+          if [ ! -s "$file" ] || [ "$(refresh_token < "$file")" = "$(printf '%s' "$GARMIN_TOKENS" | refresh_token)" ]; then
+            echo "Garmin refresh token unchanged; the saved session stays valid."
             exit 0
           fi
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::Garmin refreshed the session but SECRETS_TOKEN is not set, so the next run may fail. See the README."
+            echo "::error::Garmin issued a new refresh token but SECRETS_TOKEN is not set, so the next run may fail. See the README."
             exit 1
           fi
-          gh secret set GARMIN_TOKENS --repo "$GITHUB_REPOSITORY" < "$file"
-          echo "Saved the refreshed Garmin session to the GARMIN_TOKENS secret."
+          if ! gh secret set GARMIN_TOKENS --repo "$GITHUB_REPOSITORY" < "$file"; then
+            echo "::error::Garmin issued a new refresh token but saving it failed. SECRETS_TOKEN needs the permission 'Secrets: Read and write' on this repository; see the README."
+            exit 1
+          fi
+          echo "Saved the new Garmin refresh token to the GARMIN_TOKENS secret."
 
       - name: Remove the Garmin session from the runner
         if: always()
