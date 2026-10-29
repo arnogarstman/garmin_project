@@ -334,7 +334,7 @@ Repository secrets (Settings > Secrets and variables > Actions):
 |---|---|
 | `GARMIN_TOKENS` | The Garmin session: `uv run garmin-tokens login`, then `uv run garmin-tokens export \| gh secret set GARMIN_TOKENS` (or paste the export). |
 | `MOTHERDUCK_TOKEN` | A MotherDuck access token. |
-| `SECRETS_TOKEN` | A [fine-grained personal access token](https://github.com/settings/personal-access-tokens) for this repository only, with *Secrets: Read and write*, so the workflow can save a session Garmin refreshed. |
+| `SECRETS_TOKEN` | A [fine-grained personal access token](https://github.com/settings/personal-access-tokens) for this repository only, with *Secrets: Read and write*, so the workflow can save a new refresh token when Garmin issues one. A run that only renewed the short-lived access token leaves the secret alone. A 403 *Resource not accessible by personal access token* in the save step means the token lacks that permission or this repository. |
 | `ANTHROPIC_API_KEY` | Optional: switches on the workout reviews. |
 
 Do not add `GARMIN_EMAIL` or `GARMIN_PASSWORD` as secrets: without them no workflow can even try a

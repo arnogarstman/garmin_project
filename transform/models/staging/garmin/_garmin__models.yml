@@ -70,9 +70,47 @@ models:
     description: Device upload time as seen at each ingest run.
 
   - name: stg_garmin__coach_workouts
-    description: Workouts of Garmin Coach adaptive plans, one row per workout, in its newest known state.
+    description: >
+      Workouts of Garmin Coach adaptive plans in their newest known state: per day the tasks of the
+      newest load covering that day, so replanned (re-uuid'd) workouts replace their old versions.
+    data_tests:
+      - unique:
+          column_name: "plan_id || '/' || calendar_date"
+          config:
+            severity: warn  # one workout per plan and day so far; warn if Garmin ever schedules two
     columns:
       - name: workout_uuid
         data_tests: [unique, not_null]
       - name: calendar_date
         data_tests: [not_null]
+
+unit_tests:
+  - name: coach_workouts_keep_the_newest_plan_per_day
+    description: >
+      Coach replans and gives the new workouts new uuids. Each day keeps the workout of the newest
+      load whose window covers it; a past day only an older load covers keeps its last version; a
+      workout moved to another day shows on its new day only.
+    model: stg_garmin__coach_workouts
+    given:
+      - input: ref('base_garmin__payloads')
+        format: sql
+        rows: |
+          select 'l1' as load_id, 'adaptive_training_plan' as endpoint, '{"plan_id": "p"}'::json as params,
+              '{"name": "Plan", "endDate": "2026-12-13T00:00:00", "taskList": [
+                {"calendarDate": "2026-10-20", "taskWorkout": {"workoutName": "Basis", "workoutUuid": "a1", "adaptiveCoachingWorkoutStatus": "COMPLETED_VIA_ACTIVITY"}},
+                {"calendarDate": "2026-10-21", "taskWorkout": {"workoutName": "Drempel", "workoutUuid": "a2"}},
+                {"calendarDate": "2026-10-22", "taskWorkout": {"workoutName": "Basis", "workoutUuid": "a3"}}
+              ]}'::json as payload, timestamptz '2026-10-20 09:00:00+00' as loaded_at
+          union all
+          select 'l2', 'adaptive_training_plan', '{"plan_id": "p"}'::json,
+              '{"name": "Plan", "endDate": "2026-12-13T00:00:00", "taskList": [
+                {"calendarDate": "2026-10-21", "taskWorkout": {"workoutName": "Herstel", "workoutUuid": "b2"}},
+                {"calendarDate": "2026-10-22", "taskWorkout": {"workoutName": "Drempel", "workoutUuid": "b3"}},
+                {"calendarDate": "2026-10-23", "taskWorkout": {"workoutName": "Basis", "workoutUuid": "a3"}}
+              ]}'::json, timestamptz '2026-10-21 09:00:00+00'
+    expect:
+      rows:
+        - {calendar_date: 2026-10-20, workout_uuid: a1, workout_name: Basis, status: COMPLETED_VIA_ACTIVITY}
+        - {calendar_date: 2026-10-21, workout_uuid: b2, workout_name: Herstel, status: null}
+        - {calendar_date: 2026-10-22, workout_uuid: b3, workout_name: Drempel, status: null}
+        - {calendar_date: 2026-10-23, workout_uuid: a3, workout_name: Basis, status: null}
