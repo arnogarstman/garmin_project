@@ -33,7 +33,11 @@ function gymCell(date, run, next) {
   if (kind === 'legs' && hard(run)) why = `Run the ${run.title.toLowerCase()} first and lift after, or move leg day: tired legs cost the session its quality.`;
   else if (kind === 'legs' && hard(next)) why = `Tomorrow is a ${next.title.toLowerCase()}: keep leg day light or move it, so your legs are fresh for it.`;
   else if (kind) why = 'Strength work makes muscles and tendons more robust and running more economical; eat protein within an hour after.';
-  const body = g ? `<div class="gym"><h4>${g.label}</h4><p>${esc(g.detail)}</p><p class="why"><b>Why:</b> ${esc(why)}</p></div>` : '';
+  // An open knee injury (swim.js): leg day without deep knee bends, built around the rehab work.
+  const knee = kind === 'legs' && kneeOn(date);
+  if (knee) why = 'Keep training the legs, but around the knee: hips and quads that are strong take load off the kneecap. Stop any exercise that hurts.';
+  const detail = knee ? `Knee-friendly: no deep squats or lunges. Hip thrusts, Romanian deadlifts, leg press in a short range, side planks; then ${KNEE_STRENGTH.charAt(0).toLowerCase()}${KNEE_STRENGTH.slice(1)}` : g?.detail;
+  const body = g ? `<div class="gym"><h4>${g.label}</h4><p>${esc(detail)}</p><p class="why"><b>Why:</b> ${esc(why)}</p></div>` : '';
   if (!gym.ref || !gym.canWrite) return body;
   const opts = [['', 'No gym'], ...Object.entries(GYM_KINDS).map(([k, v]) => [k, v.label])]
     .map(([k, l]) => `<option value="${k}"${(kind || '') === k ? ' selected' : ''}>${l}</option>`).join('');
