@@ -37,10 +37,12 @@ function buildPlan({ G, R, st, sig }) {
   const n = hasRace ? Math.min(26, Math.round((raceWeek - sig.thisWeek) / (7 * DAY)) + 1) : 8;
   const full = [1, 2, 3].filter(i => sig.thisWeek - i * 7 * DAY >= sig.covered).map(sig.wk);
   const baseKm = Math.max(12, full.length ? mean(full) : 20);
-  const lv = planLevel(G);
+  const lv = planLevel(G), knee = kneeOn();
   const peakKm = Math.max(baseKm, Math.min(PLAN_PEAK_KM[dist] * lv.peakCap, Math.max(baseKm * lv.peak[0], baseKm + lv.peak[1])));
   const runsPerWeek = Math.min(6, Math.max(3, Math.round(sig.runsPerWeek || 3) + lv.extraRuns));
-  const longGoal = PLAN_LONG_KM[dist] + lv.longBonus, taperWeeks = dist === 'marathon' ? 2 : 1;
+  // Knee rehab (rehab.js): shorter long runs, grown a kilometre at a time.
+  const longGoal = knee ? Math.min(KNEE.longMax, PLAN_LONG_KM[dist] + lv.longBonus) : PLAN_LONG_KM[dist] + lv.longBonus, taperWeeks = dist === 'marathon' ? 2 : 1;
+  const growth = knee ? Math.min(lv.growth, KNEE.growth) : lv.growth, longStep = knee ? KNEE.longStep : lv.longStep;
 
   // Paces in min/km, from the predictions; race pace is the target when one is set.
   const hmP = num(st.predicted_half_marathon_s) ? st.predicted_half_marathon_s / 60 / HM_KM : null;
@@ -53,7 +55,10 @@ function buildPlan({ G, R, st, sig }) {
   const paces = { easy: [hmP + 1.0, hmP + 1.5], long: [hmP + 0.75, hmP + 1.25], threshold: [p10 + 0.05, hmP], interval: p5, race: rp };
 
   const weeks = [];
-  let km = baseKm, longKm = Math.min(Math.max(sig.longest || 8, 6) + 1, longGoal), sinceDown = 0;
+  // In the first week of knee rehab the volume restarts lower; later weeks grow from what was run.
+  let km = knee && kneeWeek(sig.thisWeek, sig) === 0 ? baseKm * KNEE.start : baseKm;
+  let longKm = Math.min(Math.max(sig.longest || 8, 6) + (knee ? 0 : 1), longGoal), sinceDown = 0;
+  if (knee) longKm = Math.min(longKm, Math.max(6, km * 0.35));
   for (let i = 0; i < n; i++) {
     const toRace = n - 1 - i;
     const phase = !hasRace ? (i < 3 ? 'base' : 'build')
@@ -65,7 +70,7 @@ function buildPlan({ G, R, st, sig }) {
       down = i > 0 && sinceDown >= 3 && phase !== 'peak';
       if (down) { sinceDown = 0; weekKm = km * 0.75; weekLong = longKm * 0.75; }
       else {
-        if (i > 0) { km = Math.min(peakKm, km * lv.growth); longKm = Math.min(longGoal, longKm + lv.longStep); }
+        if (i > 0) { km = Math.min(peakKm, km * growth); longKm = Math.min(longGoal, longKm + longStep); }
         sinceDown++; weekKm = km; weekLong = longKm;
       }
     }
@@ -74,7 +79,7 @@ function buildPlan({ G, R, st, sig }) {
     const monday = new Date(sig.thisWeek);
     weeks.push({ i, start: new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 7 * i).getTime(), phase, down, km: weekKm, long: weekLong });
   }
-  return { weeks, hasRace, race, dist, paces, runsPerWeek, raceS, predS, longGoal, baseKm, lv };
+  return { weeks, hasRace, race, dist, paces, runsPerWeek, raceS, predS, longGoal, baseKm, lv, knee, sig };
 }
 
 // The sessions of one week: [day index 0 = Monday, session] with km and the workout.
@@ -118,6 +123,13 @@ function weekSessions(plan, w, G) {
   } else if (w.phase === 'taper') {
     quality.push({ kind: 'race-pace', title: 'Race-pace reminder', km: Math.min(q, 8), detail: `2 km easy, 4 × 1 km at ${p(paces.race)} /km with 90 s jog, 2 km easy` });
   }
+  // Knee rehab: strides on the flat instead of fast work in the first weeks, then threshold instead
+  // of intervals (fast repeats load the knee most), and never more than one quality session.
+  if (plan.knee) {
+    const early = kneeWeek(w.start, plan.sig) < KNEE.noFastWeeks;
+    const kept = quality.map(s => early ? { ...strides, detail: `${strides.detail}, on the flat` } : s.kind === 'intervals' ? threshold : s);
+    quality.splice(0, quality.length, ...kept.slice(0, 1));
+  }
   // Day layout: Tuesday and Thursday for quality, Sunday long, easy days in between, Monday rest.
   const slots = runsPerWeek === 3 ? [1, 3, 6] : runsPerWeek === 4 ? [1, 2, 3, 6] : runsPerWeek === 5 ? [1, 2, 3, 5, 6] : [1, 2, 3, 4, 5, 6];
   // The race-pace finish: in the peak weeks always, and with Ambitious every other build week.
@@ -130,6 +142,7 @@ function weekSessions(plan, w, G) {
   const used = [...out.values()].reduce((s, x) => s + x.km, 0);
   const each = easyDays.length ? Math.max(4, (w.km - used) / easyDays.length) : 0;
   for (const d of easyDays) set(d, { kind: 'easy', title: 'Easy run', km: each, detail: `${Math.round(each)} km at ${range(paces.easy)} /km, conversational` });
+  if (plan.knee) kneeSwims(out, w, plan.sig);
   return out;
 }
 
@@ -147,10 +160,12 @@ function sessionWhy(s, plan, w, ctx) {
     case 'threshold': return `Threshold running (${rangeTxt(pc.threshold)}) lifts the pace you can hold for about an hour, the strongest single lever on a ${plan.race.label.toLowerCase()} time.` +
       (plan.raceS && plan.predS && plan.raceS < plan.predS ? ` It is how you close the ${hms(plan.predS - plan.raceS)} between your prediction and target.` : '');
     case 'race-pace': return `Rehearses ${pace(pc.race)} /km${G && G.targetS ? ', your target pace,' : ''} so on race day it feels familiar and you can hold it calmly instead of guessing.`;
-    case 'long': return (num(sig.longest) && sig.longest >= plan.longGoal
+    case 'long': if (plan.knee) return `Kept short while the knee recovers: about ${Math.round(s.km)} km now, a kilometre more a week up to ${plan.longGoal} km. Long downhill stretches and tired, sloppy strides are what irritate the knee most, so stop when your form goes.`;
+      return (num(sig.longest) && sig.longest >= plan.longGoal
       ? `Keeps the endurance you have: you already reach ${sig.longest.toFixed(1)} km, so the plan holds long runs around ${plan.longGoal} km where they build fitness without long recovery. `
       : `Builds the endurance to finish strong: your longest recent run is ${num(sig.longest) ? sig.longest.toFixed(1) : '–'} km and this plan takes it to about ${plan.longGoal} km. `) +
       (num(sig.drift) && sig.drift > 3 ? `Your heart rate drifts ${f0(sig.drift)}% on long runs: start slower and take fluid and carbohydrate every 30 to 40 minutes.` : 'Run it easy; the time on your feet is the point, not the pace.');
+    case 'swim': return 'Swimming keeps your aerobic fitness going without impact, so the knee gets a day off from pounding while the engine keeps working.';
     case 'shakeout': return 'Loosens the legs and settles nerves before the race without costing any freshness.';
     case 'race': return `Everything leads here. Start at ${pace(pc.race)} /km and let the second half be your fastest.`;
     default: return '';
@@ -252,8 +267,8 @@ function renderPlan(ctx) {
     const sess = planDay(date), g = gymOn(date);
     // A day without a run but with a gym session is a gym day, not a rest day.
     const page = sess
-      ? `<h4>${esc(sess.title)} <span class="km">${sess.kind === 'race' ? plan.race.label : `${Math.round(sess.km)} km`}</span></h4><p>${esc(sess.detail)}</p><p class="why"><b>Why:</b> ${esc(sessionWhy(sess, plan, w, ctx))}</p>`
-      : g ? '' : `<h4>Rest</h4><p>Off, or 20–30 min of easy cycling or mobility.</p><p class="why"><b>Why:</b> ${esc(restWhy(rests++, ctx))}</p>`;
+      ? `<h4>${esc(sess.title)} <span class="km">${sess.kind === 'race' ? plan.race.label : sess.kind === 'swim' ? `${sess.minutes} min` : `${Math.round(sess.km)} km`}</span></h4><p>${esc(sess.detail)}</p><p class="why"><b>Why:</b> ${esc(sessionWhy(sess, plan, w, ctx))}</p>`
+      : g ? '' : `<h4>Rest</h4><p>Off, or 20–30 min of easy cycling or mobility.${plan.knee ? ` ${KNEE_EXERCISES}` : ''}</p><p class="why"><b>Why:</b> ${esc(restWhy(rests++, ctx))}</p>`;
     const gymPart = gymCell(date, sess, planDay(shiftIso(date, 1)));
     rows += `<div class="prow ${sess ? sess.kind : g ? 'gym' : 'rest'}">${when}<div>${page}${gymPart}</div><div>${coachCell(date, false)}</div></div>`;
   }
@@ -265,11 +280,12 @@ function renderPlan(ctx) {
   const levelLine = `<p class="cap"><b>${plan.lv.label} level:</b> ${plan.lv.note}. Change it with your race goal above.${levelHint}</p>`;
   const gc = (lastD?.coach || []).find(c => c.plan_name);
   const coachHead = gc ? `<p class="cap">Garmin Coach: ${esc(gc.plan_name)}${gc.plan_end_date ? `, to ${fmtDate(String(gc.plan_end_date))} ${String(gc.plan_end_date).slice(0, 4)}` : ''}. Garmin only shares the current week of it.</p>` : '';
-  $('plan').innerHTML = `<p>${head}</p>${levelLine}${potentialPlanLine(ctx)}${coachHead}${gymLine(dates)}<div class="pstrip" role="group" aria-label="Weeks">${strip}</div>` +
+  $('plan').innerHTML = `<p>${head}</p>${kneeLine()}${levelLine}${potentialPlanLine(ctx)}${coachHead}${gymLine(dates)}<div class="pstrip" role="group" aria-label="Weeks">${strip}</div>` +
     `<div class="pweek"><div class="phead"><h3>Week ${w.i + 1} · ${w.phase === 'race' ? 'Race week' : w.down ? 'Lighter week' : w.phase[0].toUpperCase() + w.phase.slice(1)}</h3><span class="tot">${Math.round(total)} km${w.long ? ` · long run ${Math.round(w.long)} km` : ''}</span></div>` +
     `<p class="note">${w.down ? 'A lighter week: every fourth week drops about 25% so the three before it can sink in. ' : ''}${w.phase === 'base' && plan.lv.baseQuality ? 'Base, at the Ambitious level: easy volume, strides, and one threshold session a week from the start.' : PHASE_NOTE[w.phase]}</p>${rows}</div>`;
   for (const b of $('plan').querySelectorAll('.pw')) b.onclick = () => { planWeek = +b.dataset.w; renderPlan(ctx); };
   bindGym($('plan'), dates);
+  bindKnee();
   const recalc = $('plan-recalc');
   if (recalc) recalc.onclick = recalcFromPotential;
   renderPotential(lastD, ctx);

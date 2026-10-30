@@ -1,24 +1,28 @@
-// Gym days: strength training, split in chest, back and leg days, entered by hand in the training
-// plan. A day's choice, or the week's pattern when the day has none, lives in the artifact's database
+// Gym and swim days: strength training, split in chest, back and leg days, and swims, entered by
+// hand in the training plan. A day's choice, or the week's pattern when the day has none, lives in the artifact's database
 // (settings/gym: {weekly: {weekday: kind}, days: {date: kind or 'none'}}), like the race goal. The
 // plan shows each gym day beside the run, and the meal plan (meals.js) adds its energy, protein and
 // carbohydrate to that day's targets. Without the `db` capability no gym days exist.
 const GYM_DOC = 'settings/gym';
 const GYM_KEEP_DAYS = 120;
 const GYM_KINDS = {
-  chest: { label: 'Chest day', detail: 'Chest, shoulders and triceps: presses and flyes, 3–4 sets of 6–12 reps.' },
-  back: { label: 'Back day', detail: 'Back and biceps: rows, pull-ups and pulldowns, 3–4 sets of 6–12 reps.' },
-  legs: { label: 'Leg day', detail: 'Legs and core: squats, deadlifts and lunges, 3–4 sets of 6–12 reps.' },
+  chest: { label: 'Chest day', detail: 'Chest, shoulders and triceps: presses and flyes, 3–4 sets of 6–12 reps.', strength: true },
+  back: { label: 'Back day', detail: 'Back and biceps: rows, pull-ups and pulldowns, 3–4 sets of 6–12 reps.', strength: true },
+  legs: { label: 'Leg day', detail: 'Legs and core: squats, deadlifts and lunges, 3–4 sets of 6–12 reps.', strength: true },
+  swim: { label: 'Swim', detail: '30–45 min, mostly easy front crawl; a few faster lengths if you feel good.', strength: false },
 };
+// Leg day while knee rehab is on (rehab.js): the knee-friendly version.
+const KNEE_LEGS = 'Knee-friendly legs: box squats to parallel, Romanian deadlifts, hip thrusts and slow step-downs, 3 sets of 8–12; no deep loaded squats or lunges while the knee is sore.';
 // Energy of an hour in the gym above resting, in kcal per kg of body weight (about 5 MET, legs 6:
-// the biggest muscles cost the most), and the extra carbohydrate it asks, in g per kg.
-const GYM_KCAL_PER_KG = { chest: 4, back: 4, legs: 5 };
-const GYM_CARBS_PER_KG = { chest: 0.5, back: 0.5, legs: 1 };
+// the biggest muscles cost the most), and the extra carbohydrate it asks, in g per kg. A swim is
+// about 40 minutes of easy front crawl (about 7 MET).
+const GYM_KCAL_PER_KG = { chest: 4, back: 4, legs: 5, swim: 4 };
+const GYM_CARBS_PER_KG = { chest: 0.5, back: 0.5, legs: 1, swim: 0.75 };
 const GYM_PROTEIN_PER_KG = 2.0;
 const gym = { ref: null, canWrite: false, weekly: {}, days: {}, busy: false, msg: '' };
 
 const weekdayOf = date => (new Date(t(date)).getDay() + 6) % 7;
-// The gym session on a date (chest, back or legs), or null: the day's own choice, else the weekly pattern.
+// The gym session or swim on a date (chest, back, legs or swim), or null: the day's own choice, else the weekly pattern.
 function gymOn(date) {
   const v = gym.days[date] ?? gym.weekly[weekdayOf(date)];
   return GYM_KINDS[v] ? v : null;
@@ -32,20 +36,22 @@ function gymCell(date, run, next) {
   let why = '';
   if (kind === 'legs' && hard(run)) why = `Run the ${run.title.toLowerCase()} first and lift after, or move leg day: tired legs cost the session its quality.`;
   else if (kind === 'legs' && hard(next)) why = `Tomorrow is a ${next.title.toLowerCase()}: keep leg day light or move it, so your legs are fresh for it.`;
+  else if (kind === 'swim') why = 'Aerobic work without impact: fitness for the run, rest for joints and tendons.';
   else if (kind) why = 'Strength work makes muscles and tendons more robust and running more economical; eat protein within an hour after.';
-  const body = g ? `<div class="gym"><h4>${g.label}</h4><p>${esc(g.detail)}</p><p class="why"><b>Why:</b> ${esc(why)}</p></div>` : '';
+  const detail = kind === 'legs' && kneeOn() ? KNEE_LEGS : g?.detail;
+  const body = g ? `<div class="gym"><h4>${g.label}</h4><p>${esc(detail)}</p><p class="why"><b>Why:</b> ${esc(why)}</p></div>` : '';
   if (!gym.ref || !gym.canWrite) return body;
-  const opts = [['', 'No gym'], ...Object.entries(GYM_KINDS).map(([k, v]) => [k, v.label])]
+  const opts = [['', 'No gym or swim'], ...Object.entries(GYM_KINDS).map(([k, v]) => [k, v.label])]
     .map(([k, l]) => `<option value="${k}"${(kind || '') === k ? ' selected' : ''}>${l}</option>`).join('');
-  return `${body}<label class="gymsel">Gym<select data-gym="${date}"${gym.busy ? ' disabled' : ''}>${opts}</select></label>`;
+  return `${body}<label class="gymsel">Gym / swim<select data-gym="${date}"${gym.busy ? ' disabled' : ''}>${opts}</select></label>`;
 }
 
 // The line above the week: what the picker does, and the button that repeats this week's gym days.
 function gymLine(weekDates) {
-  if (!gym.ref) return '<p class="cap">Open the page on claude.ai to add your gym days (chest, back, legs); they count in the food targets under Nutrition.</p>';
+  if (!gym.ref) return '<p class="cap">Open the page on claude.ai to add your gym and swim days (chest, back, legs, swim); they count in the food targets under Nutrition.</p>';
   const n = weekDates.filter(gymOn).length;
-  const repeat = gym.canWrite ? ` <button type="button" class="livebtn" id="gym-repeat"${gym.busy ? ' disabled' : ''}>${n ? 'Repeat these gym days every week' : 'No gym days every week'}</button>` : '';
-  return `<p class="cap"><b>Gym:</b> ${gym.canWrite ? 'pick chest, back or legs per day below. ' : ''}Each gym day adds to that day's energy, protein and carbohydrate under Nutrition.${gym.msg ? ` <span class="pill warn">${esc(gym.msg)}</span>` : ''}${repeat}</p>`;
+  const repeat = gym.canWrite ? ` <button type="button" class="livebtn" id="gym-repeat"${gym.busy ? ' disabled' : ''}>${n ? 'Repeat these gym and swim days every week' : 'No gym or swim days every week'}</button>` : '';
+  return `<p class="cap"><b>Gym and swim:</b> ${gym.canWrite ? 'pick chest, back, legs or swim per day below. ' : ''}Each gym or swim day adds to that day's energy, protein and carbohydrate under Nutrition.${gym.msg ? ` <span class="pill warn">${esc(gym.msg)}</span>` : ''}${repeat}</p>`;
 }
 
 // Wire the pickers and the repeat button in the plan; weekDates are the 7 days of the shown week.

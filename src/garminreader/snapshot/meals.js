@@ -64,7 +64,7 @@ function mealBudget(D, goal) {
   const baseProtein = weight * (rate < 0 ? 1.8 : 1.6), [fatMin, fatMax] = FAT_G_PER_KG.map(f => f * weight);
   const todayRow = rows.find(r => r.d.slice(0, 10) === today);
   // Garmin counts a gym session in today's burn only when the watch recorded it.
-  const gymRecorded = (D.history || []).some(r => String(r.activity_date).slice(0, 10) === today && /strength|fitness_equipment/i.test(r.type || ''));
+  const gymRecorded = (D.history || []).some(r => String(r.activity_date).slice(0, 10) === today && /strength|fitness_equipment|swim/i.test(r.type || ''));
 
   let sessions = upcomingSessions(PLAN_DAYS);
   if (!sessions.length) sessions = Array.from({ length: PLAN_DAYS }, (_, k) => { const n = new Date(); return { date: iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() + k)), kind: 'rest', title: 'No plan', km: 0 }; });
@@ -72,14 +72,15 @@ function mealBudget(D, goal) {
   const days = sessions.map(s => {
     // Today, once trained, counts what was done instead of what was planned.
     const done = s.date === today && todayRow?.workouts > 0;
-    const gymKcal = s.gym && !(done && gymRecorded) ? weight * GYM_KCAL_PER_KG[s.gym] : 0;
+    // A swim in the plan (knee rehab, rehab.js) counts like a swim picked by hand.
+    const gymKcal = (s.gym && !(done && gymRecorded) ? weight * GYM_KCAL_PER_KG[s.gym] : 0) + (s.kind === 'swim' && !done ? weight * GYM_KCAL_PER_KG.swim : 0);
     const extra = (done ? (todayRow.workout_kcal || 0) : s.km * weight * RUN_KCAL_PER_KG_KM) + gymKcal;
     const burn = restBurn + extra;
-    const protein = s.gym ? Math.max(baseProtein, weight * GYM_PROTEIN_PER_KG) : baseProtein;
+    const protein = s.gym && GYM_KINDS[s.gym].strength ? Math.max(baseProtein, weight * GYM_PROTEIN_PER_KG) : baseProtein;
     let kcal = burn + delta;
     const floor = Math.max(MIN_KCAL, burn * (1 - MAX_DEFICIT_SHARE));
     if (kcal < floor) { kcal = floor; floored = true; }
-    let carbs = weight * ((done ? carbsPerKg('easy', todayRow.run_km || 8) : carbsPerKg(s.kind, s.km)) + (s.gym ? GYM_CARBS_PER_KG[s.gym] : 0));
+    let carbs = weight * ((done ? carbsPerKg('easy', todayRow.run_km || 8) : carbsPerKg(s.kind, s.km)) + (s.gym ? GYM_CARBS_PER_KG[s.gym] : 0) + (s.kind === 'swim' ? GYM_CARBS_PER_KG.swim : 0));
     const fat = Math.min(fatMax, Math.max(fatMin, (kcal - protein * 4 - carbs * 4) / 9));
     carbs = Math.max(weight * 2, (kcal - protein * 4 - fat * 9) / 4);
     const run = done ? `Done: ${todayRow.workouts} workout${todayRow.workouts > 1 ? 's' : ''}` : s.kind === 'rest' && s.gym ? '' : s.title + (s.km && s.kind !== 'race' ? ` ${Math.round(s.km)} km` : '');
@@ -191,7 +192,7 @@ ${days}
 Guidance:${g?.staples ? `
 - Build the meals around the foods the athlete eats a lot, where they fit the day's targets, and vary how they are used across the week. Count them as at home: the shopping list holds only what the plan needs beyond them.` : ''}
 - Time carbohydrate around training: a carbohydrate-rich meal two to three hours before long or hard sessions, and protein with carbohydrate within an hour after.
-- Chest, back and leg days are gym sessions of about an hour: put 25 to 40 g of protein in the meal or snack after them.
+- Chest, back and leg days are gym sessions of about an hour: put 25 to 40 g of protein in the meal or snack after them. A swim is about 40 minutes of easy swimming.
 - Simple dishes from ingredients in an ordinary supermarket. Repeat breakfasts and reuse leftovers so shopping stays short.
 - Portions in grams or household measures.
 - No medical advice and no supplements beyond ordinary food.
