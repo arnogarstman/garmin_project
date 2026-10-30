@@ -67,7 +67,8 @@ function sessionHit(kind, km, run) {
 // takes a run on its own day, else on the day after or before when that day has no session of its own.
 function adherence(runs, coach, from, to) {
   const logged = Object.entries(planlog.days || {}).filter(([d]) => d >= from && d < to).sort(([a], [b]) => a < b ? -1 : 1);
-  const planned = logged.filter(([, e]) => e.k !== 'rest');
+  // Swims are not runs: the run data cannot say whether they were done, so they are not compared.
+  const planned = logged.filter(([, e]) => e.k !== 'rest' && e.k !== 'swim');
   const busy = new Set(planned.map(([d]) => d)), byDay = new Map(), used = new Set();
   for (const r of runs) { const d = r.activity_date.slice(0, 10); byDay.set(d, [...(byDay.get(d) || []), r]); }
   const sessions = planned.map(([date, e]) => {

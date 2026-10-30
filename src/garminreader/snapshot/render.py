@@ -14,9 +14,10 @@ APP_MARKER = "/*APP*/"
 # training plan with Garmin Coach's workouts beside it and its levels, potential.js Claude's read on
 # what is within reach (rendered by plan.js), adherence.js the plan log and plan against done,
 # events.js the illness, injury and travel notes marked on the charts, gym.js the gym days entered in
-# the plan, meals.js the weight goal and meal plan (after plan.js and gym.js: it uses the planned
-# sessions and gym days), history.js the History tab (after meals.js, whose helpers it uses), goal.js
-# the race form, tabs.js the tabs, live.js boots the page (live through a connector, or embedded data).
+# the plan, swim.js the swims and the runner's knee rehab that reshapes the plan, meals.js the weight
+# goal and meal plan (after plan.js, gym.js and swim.js: it uses the planned sessions, gym days and
+# swims), history.js the History tab (after meals.js, whose helpers it uses), goal.js the race form,
+# tabs.js the tabs, live.js boots the page (live through a connector, or embedded data).
 SCRIPTS = (
     "page.js",
     "review.js",
@@ -25,6 +26,7 @@ SCRIPTS = (
     "adherence.js",
     "events.js",
     "gym.js",
+    "swim.js",
     "meals.js",
     "history.js",
     "goal.js",

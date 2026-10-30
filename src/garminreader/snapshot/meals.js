@@ -73,18 +73,20 @@ function mealBudget(D, goal) {
     // Today, once trained, counts what was done instead of what was planned.
     const done = s.date === today && todayRow?.workouts > 0;
     const gymKcal = s.gym && !(done && gymRecorded) ? weight * GYM_KCAL_PER_KG[s.gym] : 0;
-    const extra = (done ? (todayRow.workout_kcal || 0) : s.km * weight * RUN_KCAL_PER_KG_KM) + gymKcal;
+    // A planned swim (swim.js); once trained today, the watch's workouts count instead.
+    const swimKcal = s.swim && !done ? weight * SWIM_KCAL_PER_KG[s.swim] : 0;
+    const extra = (done ? (todayRow.workout_kcal || 0) : s.km * weight * RUN_KCAL_PER_KG_KM) + gymKcal + swimKcal;
     const burn = restBurn + extra;
     const protein = s.gym ? Math.max(baseProtein, weight * GYM_PROTEIN_PER_KG) : baseProtein;
     let kcal = burn + delta;
     const floor = Math.max(MIN_KCAL, burn * (1 - MAX_DEFICIT_SHARE));
     if (kcal < floor) { kcal = floor; floored = true; }
-    let carbs = weight * ((done ? carbsPerKg('easy', todayRow.run_km || 8) : carbsPerKg(s.kind, s.km)) + (s.gym ? GYM_CARBS_PER_KG[s.gym] : 0));
+    let carbs = weight * ((done ? carbsPerKg('easy', todayRow.run_km || 8) : carbsPerKg(s.kind, s.km)) + (s.gym ? GYM_CARBS_PER_KG[s.gym] : 0) + (s.swim ? SWIM_CARBS_PER_KG[s.swim] : 0));
     const fat = Math.min(fatMax, Math.max(fatMin, (kcal - protein * 4 - carbs * 4) / 9));
     carbs = Math.max(weight * 2, (kcal - protein * 4 - fat * 9) / 4);
-    const run = done ? `Done: ${todayRow.workouts} workout${todayRow.workouts > 1 ? 's' : ''}` : s.kind === 'rest' && s.gym ? '' : s.title + (s.km && s.kind !== 'race' ? ` ${Math.round(s.km)} km` : '');
-    const title = [run, s.gym && GYM_KINDS[s.gym].label].filter(Boolean).join(' + ');
-    return { date: s.date, kind: done ? 'done' : s.kind, gym: s.gym || null, title, burn: round10(burn), kcal: round10(protein * 4 + carbs * 4 + fat * 9), protein: Math.round(protein), carbs: Math.round(carbs), fat: Math.round(fat) };
+    const run = done ? `Done: ${todayRow.workouts} workout${todayRow.workouts > 1 ? 's' : ''}` : s.kind === 'rest' && (s.gym || s.swim) ? '' : s.title + (s.km && s.kind !== 'race' ? ` ${Math.round(s.km)} km` : '');
+    const title = [run, s.gym && GYM_KINDS[s.gym].label, s.swim && s.kind !== 'swim' && SWIM_KINDS[s.swim].label].filter(Boolean).join(' + ');
+    return { date: s.date, kind: done ? 'done' : s.kind, gym: s.gym || null, swim: s.swim || null, title, burn: round10(burn), kcal: round10(protein * 4 + carbs * 4 + fat * 9), protein: Math.round(protein), carbs: Math.round(carbs), fat: Math.round(fat) };
   });
   return { weight, trend, restBurn, rate, capped, floored, weeks, diff, days, eta: diff && rate ? Math.abs(diff / rate) : null };
 }
@@ -124,8 +126,8 @@ function mealPlanHtml() {
   const can = meals.sample && meals.canWrite && b;
   if (meals.busy) return `<p class="livestate" role="status">${esc(meals.busy)}</p><button type="button" class="livebtn" id="meal-stop">Stop</button>`;
   const p = mealPlan, days = (p?.plan?.days || []).filter(d => typeof d?.date === 'string' && d.date >= today);
-  // Out of date when the goal changed since, or a coming day's gym session did.
-  const trainingChanged = b && (p?.basis || []).some(d => { const now = b.days.find(x => x.date === d.date); return now && d.date > today && (now.gym || null) !== (d.gym || null); });
+  // Out of date when the goal changed since, or a coming day's gym session or swim did.
+  const trainingChanged = b && (p?.basis || []).some(d => { const now = b.days.find(x => x.date === d.date); return now && d.date > today && ((now.gym || null) !== (d.gym || null) || (now.swim || null) !== (d.swim || null)); });
   const stale = p && (!days.length || (weightGoal?.updated_at && weightGoal.updated_at > p.generated_at) || trainingChanged);
   const err = meals.error ? `<p class="mmsg">${esc(meals.error)}</p>` : '';
   const button = can ? `<button type="button" class="livebtn" id="meal-make">${p ? 'Make a new plan' : 'Make the meal plan'}</button>` : '';
@@ -163,7 +165,7 @@ function mealPlanHtml() {
   const week = days.length ? `<div class="mweek"><h3>${days.length === 1 ? 'Total' : `Total over ${days.length} days`}</h3>${totalsTable([[`${days.length} day${days.length === 1 ? '' : 's'}`, weekTot, weekTg], ['Per day', Object.fromEntries(MACROS.map(([k]) => [k, weekTot[k] / days.length])), weekTg && Object.fromEntries(Object.entries(weekTg).map(([k, v]) => [k, v / days.length]))]], 'Eaten / target')}</div>` : '';
   const shop = Array.isArray(p.plan.shopping_list) && p.plan.shopping_list.length ? `<details class="mshop"><summary>Shopping list</summary><ul>${p.plan.shopping_list.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '';
   const tips = Array.isArray(p.plan.tips) && p.plan.tips.length ? `<div class="notes"><h3>Tips</h3><ul>${p.plan.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
-  const head = `<p class="cap">Made ${fmtDate(p.generated_at)} at ${new Date(p.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${stale ? `. <span class="pill warn">out of date</span> ${!days.length ? 'its days are over' : trainingChanged ? 'your gym days changed since' : 'the goal changed since'}; make a new plan for the targets above.` : '.'}</p>`;
+  const head = `<p class="cap">Made ${fmtDate(p.generated_at)} at ${new Date(p.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${stale ? `. <span class="pill warn">out of date</span> ${!days.length ? 'its days are over' : trainingChanged ? 'your gym days or swims changed since' : 'the goal changed since'}; make a new plan for the targets above.` : '.'}</p>`;
   return `${err}${head}${button}${week}${days.length ? `<div class="mdays">${cards}</div>` : ''}${shop}${tips}`;
 }
 
