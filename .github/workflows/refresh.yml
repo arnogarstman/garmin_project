@@ -49,7 +49,7 @@ jobs:
       GARMIN_TOKEN_DIR: .garmin_tokens
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
       # Fail in seconds on a missing secret. Without MOTHERDUCK_TOKEN, DuckDB would otherwise
