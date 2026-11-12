@@ -641,23 +641,7 @@ function renderPage(D) {
 
   $('evkey-training').innerHTML = eventKey(D, x0, x1);
 
-  // Heart rate zones
-  {
-    const z = D.zones || {}, keys = ['z1', 'z2', 'z3', 'z4', 'z5'], cols = ['muted', 'c1', 'c2', 'c3', 'c6'];
-    const tot = keys.reduce((s, k) => s + (z[k] || 0), 0);
-    if (!tot) empty('ch-zones', 'No heart rate zone data yet.');
-    else {
-      const W = 1000; let x = 0, s = `<svg viewBox="0 0 ${W} 58" role="img">`;
-      keys.forEach((k, i) => {
-        const w = (z[k] || 0) / tot * W, pct = Math.round((z[k] || 0) / tot * 100), h = Math.round((z[k] || 0) / 60);
-        s += `<rect x="${x}" y="0" width="${Math.max(w - 2, 0)}" height="26" fill="${css(cols[i])}" opacity="${i ? 0.9 : 0.5}"><title>Zone ${i + 1}: ${h} h</title></rect>`;
-        if (w > 60) s += `<text x="${x}" y="44">Z${i + 1} ${pct}%</text><text x="${x}" y="58">${h} h</text>`;
-        else if (w > 0) s += `<text x="${x + w}" y="44" text-anchor="end">Z${i + 1} ${pct}%</text>`;
-        x += w;
-      });
-      $('ch-zones').innerHTML = s + '</svg>';
-    }
-  }
+  renderZones(D);
 
   renderReviews(D.reviews);
   renderMeals(D);
@@ -668,3 +652,74 @@ function renderPage(D) {
   $('health').innerHTML = D.lag.map(r => `<div><i style="background:${r.days_behind > 1 ? css('warn') : css('good')}"></i>${esc(lower(r.metric))} <span class="eyebrow">${r.days_behind}d behind · ${r.completeness_pct}%</span></div>`).join('');
 }
 
+// Heart rate zones: time in each zone over the period (all activities), then a few plain findings on
+// where your heart rate sits on Garmin's own zone limits (marts.rpt_heart_rate_zones) in the last 4
+// weeks of runs and what that means for easy and hard days. renderPage() calls renderZones().
+const ZONE_COLS = ['muted', 'c1', 'c2', 'c3', 'c6'];
+const ZONE_NAMES = ['Zone 1 · recovery', 'Zone 2 · easy', 'Zone 3 · moderate', 'Zone 4 · threshold', 'Zone 5 · maximum'];
+const ZONE_METHOD = { HR_MAX: 'set from your maximum heart rate', LACTATE_THRESHOLD: 'set from your lactate threshold', HRR: 'set from your heart rate reserve' };
+
+// The zone limits as [floor, ceiling] in bpm per zone, or null without Garmin's zones.
+function zoneBands(hz) {
+  const f = ['z1', 'z2', 'z3', 'z4', 'z5'].map(k => hz?.[k]);
+  if (!f.every(num) || !num(hz.max)) return null;
+  return f.map((lo, i) => [lo, i < 4 ? f[i + 1] - 1 : hz.max]);
+}
+// The zone (1 to 5) of a heart rate, 0 below zone 1.
+const zoneOf = (bands, bpm) => bands.reduce((z, [lo], i) => bpm >= lo ? i + 1 : z, 0);
+
+function renderZones(D) {
+  const bands = zoneBands(D.hrzones), hz = D.hrzones || {};
+  const range = i => bands ? `${bands[i][0]}–${bands[i][1]} bpm` : '';
+
+  // Time in zone over the period, all activities.
+  {
+    const z = D.zones || {}, keys = ['z1', 'z2', 'z3', 'z4', 'z5'];
+    const tot = keys.reduce((s, k) => s + (z[k] || 0), 0);
+    if (!tot) empty('ch-zones', 'No heart rate zone data yet.');
+    else {
+      // A zone's label goes under its bar only where it fits within it; every zone has its tooltip.
+      const W = wideW(), full = bands ? 80 : 46;
+      let x = 0, s = `<svg viewBox="0 0 ${W} 72" role="img" aria-label="Time in heart rate zone, all activities">`;
+      keys.forEach((k, i) => {
+        const w = (z[k] || 0) / tot * W, pct = Math.round((z[k] || 0) / tot * 100), h = Math.round((z[k] || 0) / 60);
+        s += `<rect class="mark" x="${x}" y="0" width="${Math.max(w - 2, 0)}" height="26" fill="${css(ZONE_COLS[i])}" opacity="${i ? 0.9 : 0.5}" tabindex="0"${tipAttr(`${h} h · ${pct}%`, `${ZONE_NAMES[i]}${bands ? ` · ${range(i)}` : ''}`)}/>`;
+        if (w >= full) s += `<text x="${x}" y="44">Z${i + 1} ${pct}%</text><text x="${x}" y="58">${h} h</text>${bands ? `<text x="${x}" y="72">${range(i)}</text>` : ''}`;
+        else if (w >= 46) s += `<text x="${x}" y="44">Z${i + 1} ${pct}%</text>`;
+        x += w;
+      });
+      $('ch-zones').innerHTML = `<p class="cap">Time in each zone, all activities in the period</p>${s}</svg>`;
+    }
+  }
+
+  // Where your heart rate sits, in words: the last 4 weeks of runs on Garmin's own zone limits.
+  const days = D.daily || [], x1 = days.length ? t(days[days.length - 1].d) : Date.now();
+  const runs = (D.runs || []).filter(r => num(r.avg_hr) && r.avg_hr > 0 && t(r.activity_date) > x1 - 28 * DAY);
+  $('cap-hrscale').textContent = bands
+    ? `Zone limits are Garmin's, ${ZONE_METHOD[hz.training_method] || 'from your watch'}; hover a zone for its hours.`
+    : 'Garmin has not reported your zone limits yet, so the page cannot place your heart rate in them.';
+  if (!bands) { $('zone-notes').innerHTML = ''; return; }
+
+  // What it says: easy days, the hard share, threshold and the latest run, each with its numbers.
+  const notes = [];
+  if (runs.length >= 3) {
+    const cut = median(runs.map(x => x.avg_hr)), easy = runs.filter(x => x.avg_hr <= cut), easyHr = median(easy.map(x => x.avg_hr));
+    const z2top = bands[1][1], inZ3 = easy.filter(x => x.avg_hr > z2top).length;
+    notes.push(easyHr > z2top
+      ? ['warn', `Your easier runs average ${Math.round(easyHr)} bpm, in zone ${zoneOf(bands, easyHr)}: above the ${z2top} bpm top of zone 2. ${inZ3} of your ${easy.length} easiest runs went over it. Slow down until your heart rate stays under ${z2top + 1}; easy days that are easy let the hard days count.`]
+      : ['good', `Your easier runs average ${Math.round(easyHr)} bpm, in zone 2 (${range(1)}), ${z2top - Math.round(easyHr)} bpm under the top of it: easy, as they should be.`]);
+    const sum = k => runs.reduce((a, x) => a + (num(x[k]) ? x[k] : 0), 0);
+    const zt = ['z1', 'z2', 'z3', 'z4', 'z5'].map(sum), tot = zt.reduce((a, b) => a + b, 0);
+    if (tot >= 60) {
+      const easyPct = (zt[0] + zt[1]) / tot * 100, hardMin = (zt[3] + zt[4]) / 4;
+      notes.push([easyPct >= 75 ? 'good' : 'warn', `Running time in the last 4 weeks: ${Math.round(easyPct)}% in zones 1–2, ${Math.round(zt[2] / tot * 100)}% in zone 3 and about ${Math.round(hardMin)} min a week in zones 4–5. ${easyPct >= 75 ? 'Close to the 80% easy that endurance training is built on.' : `The norm is about 80% easy; the gap sits mostly in zone 3${zt[2] > zt[3] + zt[4] ? ', which tires without building much' : ''}.`}`]);
+    }
+  }
+  if (num(hz.lthr)) notes.push(['good', `Your lactate threshold is ${hz.lthr} bpm (zone ${zoneOf(bands, hz.lthr)}). Threshold sessions in the plan belong just under it, about ${hz.lthr - 8}–${hz.lthr - 2} bpm once the heart rate has settled; intervals may go above.`]);
+  const last = runs[runs.length - 1];
+  if (last) {
+    const z = zoneOf(bands, last.avg_hr);
+    notes.push([z >= 4 ? 'warn' : 'good', `Last run, ${fmtDate(last.activity_date)} (${esc(last.activity_name)}): ${Math.round(last.avg_hr)} bpm on average, zone ${z || 'below 1'}${num(last.km) ? ` over ${last.km.toFixed(1)} km` : ''}.${z >= 4 ? ' A hard session: give it an easy day after.' : ''}`]);
+  }
+  $('zone-notes').innerHTML = notes.length ? `<div class="znotes">${notes.map(([tone, text]) => `<p class="${tone}">${text}</p>`).join('')}</div>` : '';
+}

@@ -103,12 +103,19 @@ QUERIES: dict[str, str] = {
         where calendar_date > current_date - interval 56 day
         order by calendar_date, workout_name
     """,
+    "hrzones": """
+        select zone_1_floor_bpm as z1, zone_2_floor_bpm as z2, zone_3_floor_bpm as z3, zone_4_floor_bpm as z4,
+               zone_5_floor_bpm as z5, max_hr_bpm as max, lactate_threshold_hr_bpm as lthr, training_method
+        from marts.rpt_heart_rate_zones
+        order by lower(sport) = 'running' desc, sport = 'DEFAULT' desc, sport
+        limit 1
+    """,
     "lag": "select * from marts.rpt_metric_lag order by metric",
     "status": "select * from marts.rpt_current_status",
 }
 
 # Single-row queries: the payload holds the row itself, or null.
-SINGLE_ROW = frozenset({"status", "zones"})
+SINGLE_ROW = frozenset({"hrzones", "status", "zones"})
 
 
 def _jsonable(value: Any) -> Any:

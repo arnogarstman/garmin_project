@@ -70,6 +70,10 @@ MARTS = {
     "rpt_metric_lag": """
         select m as metric, current_date as latest_date, 0 as days_behind, 100.0 as completeness_pct
         from (values ('sleep'), ('hrv')) t(m)""",
+    "rpt_heart_rate_zones": """
+        select 'RUNNING' as sport, 'HR_MAX' as training_method, 100 as zone_1_floor_bpm, 120 as zone_2_floor_bpm,
+               140 as zone_3_floor_bpm, 160 as zone_4_floor_bpm, 175 as zone_5_floor_bpm, 190 as max_hr_bpm,
+               168 as lactate_threshold_hr_bpm""",
     "rpt_current_status": "select 'productive' as training_status, 45.0 as vo2max",
     "fct_daily_energy": """
         select current_date - i::int as calendar_date, 2500.0 + i as total_kcal, (i % 2)::bigint as workouts,

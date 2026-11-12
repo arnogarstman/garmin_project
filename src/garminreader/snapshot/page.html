@@ -140,6 +140,10 @@ section>*{min-width:0}
 .prow.long{border-left-color:var(--c5)}.prow.easy,.prow.strides,.prow.shakeout{border-left-color:var(--c2)}
 .prow.race{border-left-color:var(--c3);background:color-mix(in srgb,var(--c3) 8%,transparent)}
 .prow.rest{border-left-color:var(--grid)}
+.znotes{display:grid;gap:8px;margin-top:6px}
+#cap-hrscale{margin-top:6px}
+.znotes p{border-left:3px solid var(--good);padding:2px 0 2px 10px;font-size:.9rem;max-width:80ch}
+.znotes p.warn{border-color:var(--warn)}
 .prow.gym{border-left-color:var(--c4)}
 .prow .gym{margin-top:8px;padding-left:10px;border-left:3px solid var(--c4)}
 .prow>div>.gym:first-child{margin-top:0;padding-left:0;border-left:0}
@@ -352,8 +356,10 @@ footer{font-size:.8rem;color:var(--muted)}
   </div>
   <div id="evkey-training"></div>
   <div class="chart">
-    <h3>Time in heart rate zone, all activities</h3>
+    <h3>Heart rate zones</h3>
     <div id="ch-zones"></div>
+    <div class="cap" id="cap-hrscale"></div>
+    <div id="zone-notes"></div>
   </div>
 </section>
 
