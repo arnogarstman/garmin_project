@@ -165,7 +165,7 @@ function mealPlanHtml() {
   const week = days.length ? `<div class="mweek"><h3>${days.length === 1 ? 'Total' : `Total over ${days.length} days`}</h3>${totalsTable([[`${days.length} day${days.length === 1 ? '' : 's'}`, weekTot, weekTg], ['Per day', Object.fromEntries(MACROS.map(([k]) => [k, weekTot[k] / days.length])), weekTg && Object.fromEntries(Object.entries(weekTg).map(([k, v]) => [k, v / days.length]))]], 'Eaten / target')}</div>` : '';
   const shop = Array.isArray(p.plan.shopping_list) && p.plan.shopping_list.length ? `<details class="mshop"><summary>Shopping list</summary><ul>${p.plan.shopping_list.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '';
   const tips = Array.isArray(p.plan.tips) && p.plan.tips.length ? `<div class="notes"><h3>Tips</h3><ul>${p.plan.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
-  const head = `<p class="cap">Made ${fmtDate(p.generated_at)} at ${new Date(p.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${stale ? `. <span class="pill warn">out of date</span> ${!days.length ? 'its days are over' : trainingChanged ? 'your gym days or swims changed since' : 'the goal changed since'}; make a new plan for the targets above.` : '.'}</p>`;
+  const head = `<p class="cap">Made ${fmtDate(p.generated_at)} at ${new Date(p.generated_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}${stale ? `. <span class="pill warn">out of date</span> ${!days.length ? 'its days are over' : trainingChanged ? 'your gym days, swims or rows changed since' : 'the goal changed since'}; make a new plan for the targets above.` : '.'}</p>`;
   return `${err}${head}${button}${week}${days.length ? `<div class="mdays">${cards}</div>` : ''}${shop}${tips}`;
 }
 
