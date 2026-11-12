@@ -112,6 +112,19 @@ function bindKnee() {
 
 // --- Swim and rowing days in the plan -----------------------------------------------------------
 
+// The weekly row: every week outside the taper and race week has one session on the rowing machine.
+// With two easy runs or more, the first becomes an easy row; with fewer, the row goes on a free day
+// midweek, not the day before the long run. `sessions` is weekSessions(), `k` the day (0 is Monday).
+function weeklyRow(sessions, k, w) {
+  const s = sessions.get(k);
+  if (w.phase === 'taper' || w.phase === 'race') return s;
+  const row = { kind: 'swim', swim: 'row', title: 'Easy row', km: 0, detail: SWIM_KINDS.row.detail };
+  const easy = [...sessions.entries()].filter(([, x]) => x.kind === 'easy').map(([d]) => d).sort((a, b) => a - b);
+  if (easy.length >= 2) return k === easy[0] ? row : s;
+  const free = [2, 4, 1, 3, 0].find(d => !sessions.has(d));
+  return k === free ? row : s;
+}
+
 // The swim or row part of a day in the plan: the session with its reason, and the picker when this
 // view may save. `run` is the day's planned session (already a swim or row when knee rehab moved a
 // hard session off the road).
@@ -136,7 +149,7 @@ function swimLine(weekDates) {
   if (!swim.ref) return '<p class="cap">Open the page on claude.ai to add swims and rowing to your week; they count in the food targets under Nutrition.</p>';
   const n = weekDates.filter(swimOn).length;
   const repeat = swim.canWrite ? ` <button type="button" class="livebtn" id="swim-repeat"${swim.busy ? ' disabled' : ''}>${n ? 'Repeat these every week' : 'No swims or rows every week'}</button>` : '';
-  return `<p class="cap"><b>Swim / row:</b> ${swim.canWrite ? 'pick a swim or a session on the rowing machine per day below. ' : ''}Each adds to that day's energy and carbohydrate under Nutrition.${swim.msg ? ` <span class="pill warn">${esc(swim.msg)}</span>` : ''}${repeat}</p>`;
+  return `<p class="cap"><b>Swim / row:</b> the plan puts one easy row on the rowing machine in every week before the taper. ${swim.canWrite ? 'Add a swim or another row per day below. ' : ''}Each adds to that day's energy and carbohydrate under Nutrition.${swim.msg ? ` <span class="pill warn">${esc(swim.msg)}</span>` : ''}${repeat}</p>`;
 }
 
 // Wire the swim pickers, the repeat button and the knee buttons; weekDates are the shown week's 7 days.
