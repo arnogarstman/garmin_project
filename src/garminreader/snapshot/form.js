@@ -23,6 +23,25 @@ const FORM_METRICS = [
   { key: 'vr', label: 'Vertical ratio', unit: '%', fmt: v => v.toFixed(1), color: 'c4', range: 'Bounce per metre of stride. Garmin: 7.5–8.6% is the middle, lower is more efficient.' },
 ];
 
+// What to aim for per metric, from the latest run (r) and the four-week medians (m): {value, text}.
+// Cadence: 5% above your own, within 170 to 180 spm, the step that lowers knee load without forcing
+// it. Stride: what that cadence gives at the latest run's pace, so the speed stays the same. Ground
+// contact, oscillation and ratio: the top of Garmin's second-best band, or a small step below your
+// own when you are already there. Balance: even.
+function formTarget(key, r, m) {
+  const cad = m.cadence ?? r.cadence;
+  const aimCad = Math.min(180, Math.max(170, Math.round(cad * 1.05)));
+  switch (key) {
+    case 'cadence': return cad >= 180 ? { value: cad, text: `keep ${Math.round(cad)}` } : { value: aimCad, text: `${aimCad} spm` };
+    case 'stride': return num(r.pace) && r.pace > 0 ? { value: 1000 / r.pace / aimCad, text: `${(1000 / r.pace / aimCad).toFixed(2)} m at ${pace(r.pace)} /km` } : null;
+    case 'gct': return { value: 240, text: (m.gct ?? r.gct) <= 240 ? 'under 240 ms: keep' : 'under 240 ms' };
+    case 'balance': return { value: 50, text: '50.0% (49.2 to 50.8)' };
+    case 'vo': return { value: 8.1, text: (m.vo ?? r.vo) <= 8.1 ? 'under 8.1 cm: keep' : 'under 8.1 cm' };
+    case 'vr': return { value: 7.4, text: (m.vr ?? r.vr) <= 7.4 ? 'under 7.5%: keep' : 'under 7.5%' };
+    default: return null;
+  }
+}
+
 // Where a value sits in Garmin's ranges: [label, pill class], or null for a metric without bands.
 function formLevel(key, v) {
   const b = FORM_BANDS[key];
@@ -58,10 +77,13 @@ function renderForm(D) {
     : 'These are estimated at the wrist. Wear the HRM 600 on your runs: it measures at the chest and adds left/right balance.'}</p>`;
 
   // Tiles: the latest run, its place in Garmin's ranges, and the four-week median.
+  const medians = Object.fromEntries(FORM_METRICS.map(m => [m.key, med(m.key)]));
+  const aims = Object.fromEntries(FORM_METRICS.map(m => [m.key, formTarget(m.key, last, medians)]));
   const tile = m => {
-    const v = last[m.key], lv = m.key === 'balance' ? balanceLevel(v) : formLevel(m.key, v), mv = med(m.key);
+    const v = last[m.key], lv = m.key === 'balance' ? balanceLevel(v) : formLevel(m.key, v), mv = medians[m.key], aim = aims[m.key];
     return `<div class="tile"><span class="eyebrow">${m.label}</span><span class="v">${num(v) ? m.fmt(v) : '–'}<small>${m.unit}</small></span>` +
-      `<span class="s">${lv ? `<span class="pill ${lv[1]}">${lv[0]}</span> ` : ''}${num(mv) && base.length > 1 ? `4 weeks: ${m.fmt(mv)}` : !num(v) && m.key === 'balance' ? 'needs the HRM 600' : ''}</span></div>`;
+      `<span class="s">${lv ? `<span class="pill ${lv[1]}">${lv[0]}</span> ` : ''}${num(mv) && base.length > 1 ? `4 weeks: ${m.fmt(mv)}` : !num(v) && m.key === 'balance' ? 'needs the HRM 600' : ''}</span>` +
+      `${aim ? `<span class="s aim"><b>Aim:</b> ${esc(aim.text)}</span>` : ''}</div>`;
   };
   const power = num(last.power) ? `<div class="tile"><span class="eyebrow">Power</span><span class="v">${Math.round(last.power)}<small>W</small></span><span class="s">${[num(D.status?.weight_kg) && `${(last.power / D.status.weight_kg).toFixed(1)} W/kg`, base.length > 1 && `4 weeks: ${Math.round(med('power') || 0)} W`].filter(Boolean).join(' · ')}</span></div>` : '';
   $('formtiles').innerHTML = `<p class="cap">Latest run: ${esc(last.activity_name)}, ${fmtDate(last.activity_date)}${num(last.km) ? `, ${last.km.toFixed(1)} km` : ''}${num(last.pace) ? ` at ${pace(last.pace)} /km` : ''}${last.chest ? ' · chest strap' : ' · wrist'}</p>` +
@@ -73,7 +95,7 @@ function renderForm(D) {
   const knee = typeof kneeOn === 'function' && kneeOn(today);
   const cad = med('cadence'), gct = med('gct'), vr = med('vr'), vo = med('vo');
   if (num(cad)) {
-    const target = Math.round(cad * 1.05);
+    const target = aims.cadence.value;
     notes.push(cad < 170
       ? card('Cadence', 'warn', 'low', `${Math.round(cad)} steps a minute: room to quicken`, `Raising cadence 5 to 10% at the same pace shortens the stride and lands the foot closer under you, which measurably lowers the load on the knee and hip${knee ? ': the most direct lever on your runner\'s knee' : ''}. Aim for about ${target} spm on easy runs: a metronome or the watch's cadence alert helps, and give it two to three weeks to feel normal.`)
       : card('Cadence', 'good', 'fine', `${Math.round(cad)} steps a minute`, `A cadence that keeps the stride compact and the knee load moderate.${knee ? ' Keep it there while the knee recovers; a few more steps a minute on easy runs does no harm.' : ''}`));
@@ -103,11 +125,11 @@ function renderForm(D) {
   const x0 = t(rows[0].activity_date), x1 = t(last.activity_date);
   const marks = (firstChest ? [{ s: t(firstChest.activity_date), e: t(firstChest.activity_date), color: 'c5', value: 'HRM 600', label: `${fmtDate(firstChest.activity_date)} · first run with the chest strap` }] : [])
     .concat(chartEvents(D, x0, x1, { races: false }));
-  $('formcharts').innerHTML = FORM_METRICS.map(m => `<div class="chart"><h3>${m.label}</h3><div id="ch-f-${m.key}"></div><div class="cap">${m.range}</div></div>`).join('');
+  $('formcharts').innerHTML = FORM_METRICS.map(m => `<div class="chart"><h3>${m.label}</h3><div id="ch-f-${m.key}"></div><div class="cap">${aims[m.key] ? `<b>Aim: ${esc(aims[m.key].text)}.</b> ` : ''}${m.range}</div></div>`).join('');
   for (const m of FORM_METRICS) {
     const pts = rows.filter(r => num(r[m.key])).map(r => [t(r.activity_date), r[m.key]]);
     if (pts.length === 1) { $(`ch-f-${m.key}`).innerHTML = `<p class="cap">One run so far: ${m.fmt(pts[0][1])} ${m.unit} on ${fmtDate(iso(new Date(pts[0][0])))}. The line starts with the next one.</p>`; continue; }
-    lineChart(`ch-f-${m.key}`, pts, { fmt: (v, axis) => axis ? m.fmt(v) : `${m.fmt(v)} ${m.unit}`, label: m.label, color: m.color, events: marks.filter(e => e.s >= (pts[0]?.[0] ?? x0)) });
+    lineChart(`ch-f-${m.key}`, pts, { fmt: (v, axis) => axis ? m.fmt(v) : `${m.fmt(v)} ${m.unit}`, label: m.label, color: m.color, events: marks.filter(e => e.s >= (pts[0]?.[0] ?? x0)), target: aims[m.key]?.value });
   }
 }
 

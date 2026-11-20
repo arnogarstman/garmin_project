@@ -49,6 +49,9 @@ header{display:grid;gap:12px}
 #records .tile,#histkpis .tile{border:1px solid var(--grid)}
 #formtiles .tiles{background:none;border:0;gap:12px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 #formtiles .tile{border:1px solid var(--grid)}
+#formtiles .aim{color:var(--ink);margin-top:2px}
+#formtiles .aim b{font-weight:600}
+.weekcard p b{color:var(--ink);font-weight:600}
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px 28px}
 .grid3 .chart{min-width:0}
 .heatlegend{display:flex;align-items:center;gap:3px;font-size:.78rem;color:var(--ink2)}
@@ -313,6 +316,11 @@ footer{font-size:.8rem;color:var(--muted)}
 <section>
   <div class="sechead"><h2>Today</h2><span class="eyebrow">marts.rpt_current_status</span></div>
   <div class="tiles" id="tiles"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Your week</h2><span class="eyebrow">Weekly report by Claude · last full week</span></div>
+  <div class="wreview" id="weekly"></div>
 </section>
 
 <section>

@@ -59,13 +59,14 @@ function bindTips(root) {
 
 // A line chart with a crosshair: the pointer snaps to the nearest point and shows its value, and
 // the events (events.js) near it. `events` are drawn under the line.
-function lineChart(id, pts, { fmt, label, color = 'c1', W = 360, H = 190, events = [] }) {
+function lineChart(id, pts, { fmt, label, color = 'c1', W = 360, H = 190, events = [], target = null }) {
   const el = $(id), P = pts.filter(p => num(p[1]));
   if (P.length < 2) { el.innerHTML = '<p class="cap">Not enough readings in this period.</p>'; return; }
-  const ys = P.map(p => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), pad = (hi - lo) * 0.15 || 1;
+  // A target (a number) is a dashed reference line, inside the scale.
+  const ys = [...P.map(p => p[1]), ...(num(target) ? [target] : [])], lo = Math.min(...ys), hi = Math.max(...ys), pad = (hi - lo) * 0.15 || 1;
   const f = frame({ x0: P[0][0], x1: P[P.length - 1][0], yTicks: niceTicks(lo - pad, hi + pad, 3), fmtY: v => fmt(v, true), W, H });
   const last = P[P.length - 1];
-  el.innerHTML = f.s + eventMarks(f, events) + `<path d="${path(P, f.X, f.Y)}" fill="none" stroke="${css(color)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
+  el.innerHTML = f.s + eventMarks(f, events) + (num(target) ? `<line x1="${f.L}" x2="${f.W - f.R}" y1="${f.Y(target)}" y2="${f.Y(target)}" stroke="${css('good')}" stroke-width="1.5" stroke-dasharray="6 4"/><text x="${f.W - f.R}" y="${f.Y(target) - 5}" text-anchor="end" style="fill:${css('good')}">aim</text>` : '') + `<path d="${path(P, f.X, f.Y)}" fill="none" stroke="${css(color)}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` +
     `<circle cx="${f.X(last[0])}" cy="${f.Y(last[1])}" r="4" fill="${css(color)}" stroke="${css('bg')}" stroke-width="2"/>` +
     `<text x="${f.X(last[0]) - 8}" y="${f.Y(last[1]) - 10}" text-anchor="end" style="fill:${css('ink')};font-weight:500;paint-order:stroke;stroke:${css('bg')};stroke-width:4px;stroke-linejoin:round">${fmt(last[1])}</text>` +
     `<line class="xh" y1="${f.T}" y2="${f.T + f.ih}" stroke="${css('muted')}" stroke-width="1" visibility="hidden"/>` +
