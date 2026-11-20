@@ -47,6 +47,8 @@ header{display:grid;gap:12px}
 .tile .v{font-variant-numeric:normal}
 #records .tiles,#histkpis .tiles{background:none;border:0;gap:12px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
 #records .tile,#histkpis .tile{border:1px solid var(--grid)}
+#formtiles .tiles{background:none;border:0;gap:12px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+#formtiles .tile{border:1px solid var(--grid)}
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px 28px}
 .grid3 .chart{min-width:0}
 .heatlegend{display:flex;align-items:center;gap:3px;font-size:.78rem;color:var(--ink2)}
@@ -305,7 +307,7 @@ footer{font-size:.8rem;color:var(--muted)}
   <p class="livestate" id="livestate" role="status" hidden></p><button class="livebtn" id="livebtn" type="button" hidden>Run the query</button>
 </header>
 
-<nav class="tabs" role="tablist" aria-label="Sections"><button type="button" role="tab" id="tab-today" aria-controls="panel-today" data-tab="today">Today</button><button type="button" role="tab" id="tab-training" aria-controls="panel-training" data-tab="training">Training</button><button type="button" role="tab" id="tab-nutrition" aria-controls="panel-nutrition" data-tab="nutrition">Nutrition</button><button type="button" role="tab" id="tab-history" aria-controls="panel-history" data-tab="history">History</button><button type="button" role="tab" id="tab-about" aria-controls="panel-about" data-tab="about">About</button></nav>
+<nav class="tabs" role="tablist" aria-label="Sections"><button type="button" role="tab" id="tab-today" aria-controls="panel-today" data-tab="today">Today</button><button type="button" role="tab" id="tab-training" aria-controls="panel-training" data-tab="training">Training</button><button type="button" role="tab" id="tab-form" aria-controls="panel-form" data-tab="form">Form</button><button type="button" role="tab" id="tab-nutrition" aria-controls="panel-nutrition" data-tab="nutrition">Nutrition</button><button type="button" role="tab" id="tab-history" aria-controls="panel-history" data-tab="history">History</button><button type="button" role="tab" id="tab-about" aria-controls="panel-about" data-tab="about">About</button></nav>
 
 <div class="panel" role="tabpanel" id="panel-today" aria-labelledby="tab-today">
 <section>
@@ -371,6 +373,24 @@ footer{font-size:.8rem;color:var(--muted)}
 <section>
   <div class="sechead"><h2>Week in review</h2><span class="eyebrow">Last full week, Monday to Sunday</span></div>
   <div class="review" id="review"></div>
+</section>
+</div>
+
+<div class="panel" role="tabpanel" id="panel-form" aria-labelledby="tab-form">
+<section>
+  <div class="sechead"><h2>Running form</h2><span class="eyebrow">marts.fct_running_form · running dynamics</span></div>
+  <div id="formsrc"></div>
+  <div id="formtiles"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Coach's read on your form</h2><span class="eyebrow" id="formbase">Last 4 weeks of runs</span></div>
+  <div class="coach" id="formnotes"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Trends</h2><span class="eyebrow">Per run · hover for values</span></div>
+  <div class="grid3" id="formcharts"></div>
 </section>
 </div>
 

@@ -70,6 +70,13 @@ MARTS = {
     "rpt_metric_lag": """
         select m as metric, current_date as latest_date, 0 as days_behind, 100.0 as completeness_pct
         from (values ('sleep'), ('hrv')) t(m)""",
+    "fct_running_form": """
+        select current_date - i::int as activity_date, (current_date - i::int)::timestamp as started_at_local,
+               'Run ' || i as activity_name, 8.0 as distance_km, 5.5 as pace_min_per_km, 150.0 as avg_hr,
+               168.0 + i as cadence_spm, 1.08 as stride_length_m, 260.0 as ground_contact_ms,
+               case when i = 0 then 50.4 end as ground_contact_balance_left_pct, 9.0 as vertical_oscillation_cm,
+               8.2 as vertical_ratio_pct, 360.0 as power_w, i = 0 as is_chest_strap
+        from range(6) t(i)""",
     "rpt_heart_rate_zones": """
         select 'RUNNING' as sport, 'HR_MAX' as training_method, 100 as zone_1_floor_bpm, 120 as zone_2_floor_bpm,
                140 as zone_3_floor_bpm, 160 as zone_4_floor_bpm, 175 as zone_5_floor_bpm, 190 as max_hr_bpm,

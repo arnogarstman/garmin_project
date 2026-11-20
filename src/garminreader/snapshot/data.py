@@ -103,6 +103,16 @@ QUERIES: dict[str, str] = {
         where calendar_date > current_date - interval 56 day
         order by calendar_date, workout_name
     """,
+    "form": """
+        select activity_date, activity_name, round(distance_km, 1) as km, round(pace_min_per_km, 2) as pace,
+               round(avg_hr) as avg_hr, round(cadence_spm, 1) as cadence, round(stride_length_m, 2) as stride,
+               round(ground_contact_ms) as gct, round(ground_contact_balance_left_pct, 1) as balance,
+               round(vertical_oscillation_cm, 1) as vo, round(vertical_ratio_pct, 1) as vr, round(power_w) as power,
+               is_chest_strap as chest
+        from marts.fct_running_form
+        where activity_date > current_date - interval {days} day
+        order by started_at_local
+    """,
     "hrzones": """
         select zone_1_floor_bpm as z1, zone_2_floor_bpm as z2, zone_3_floor_bpm as z3, zone_4_floor_bpm as z4,
                zone_5_floor_bpm as z5, max_hr_bpm as max, lactate_threshold_hr_bpm as lthr, training_method
