@@ -59,3 +59,22 @@ def test_export_refuses_without_a_working_session(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(auth, "try_resume_session", lambda: None)
     with pytest.raises(SystemExit, match="garmin-tokens login"):
         tokens.export()
+
+
+def test_a_fresh_login_ignores_the_saved_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A refused saved session must not stop a password login: login() gets no tokenstore."""
+    calls: list[dict[str, Any]] = []
+
+    class Api:
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        def login(self, **kwargs: Any) -> tuple[str, None]:
+            calls.append(kwargs)
+            return "needs_mfa", None
+
+    monkeypatch.setattr(auth, "Garmin", Api)
+    monkeypatch.setenv("GARMINTOKENS", "{}")
+    _, status = auth.begin_login("athlete@example.com", "secret")
+    assert status == "mfa"
+    assert calls == [{}]
