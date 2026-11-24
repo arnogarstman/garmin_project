@@ -48,7 +48,10 @@ function mealBudget(D, goal) {
   // minus its workouts when there are too few rest days.
   const recent = complete.filter(r => t(r.d) > t(today) - 28 * DAY);
   const rest = recent.filter(r => !r.workouts);
-  const restBurn = rest.length >= 3 ? avg(rest.map(r => r.kcal)) : avg(recent.map(r => r.kcal - (r.workout_kcal || 0)));
+  const garminRestBurn = rest.length >= 3 ? avg(rest.map(r => r.kcal)) : avg(recent.map(r => r.kcal - (r.workout_kcal || 0)));
+  // Corrected by what you say you eat against your weight trend, when you asked for it (energy.js).
+  const corr = energyCorrection(D), correction = corr?.apply ? corr.offset : 0;
+  const restBurn = garminRestBurn + correction;
 
   let rate = 0, capped = false, weeks = null, diff = null;
   if (goal && num(goal.target_kg)) {
@@ -88,7 +91,7 @@ function mealBudget(D, goal) {
     const title = [run, s.gym && GYM_KINDS[s.gym].label, s.swim && s.kind !== 'swim' && SWIM_KINDS[s.swim].label].filter(Boolean).join(' + ');
     return { date: s.date, kind: done ? 'done' : s.kind, gym: s.gym || null, swim: s.swim || null, title, burn: round10(burn), kcal: round10(protein * 4 + carbs * 4 + fat * 9), protein: Math.round(protein), carbs: Math.round(carbs), fat: Math.round(fat) };
   });
-  return { weight, trend, restBurn, rate, capped, floored, weeks, diff, days, eta: diff && rate ? Math.abs(diff / rate) : null };
+  return { weight, trend, restBurn, correction, rate, capped, floored, weeks, diff, days, eta: diff && rate ? Math.abs(diff / rate) : null };
 }
 
 function renderMeals(D) {
@@ -107,7 +110,7 @@ function renderMeals(D) {
     tile('Trend', num(b.trend) ? `${sign(b.trend)}<small>kg/wk</small>` : '–', 'over the last 4 weeks'),
     tile('Goal', g ? `${g.target_kg.toFixed(1)}<small>kg</small>` : '–', g ? (g.target_date ? `by ${fmtDate(g.target_date)} ${new Date(t(g.target_date)).getFullYear()}` : 'no date: steady pace') : 'set it on the right'),
     tile('Planned pace', g ? `${sign(b.rate)}<small>kg/wk</small>` : '–', !g ? 'maintenance until a goal is set' : b.capped ? `<span class="pill warn">capped</span> goal needs ${sign(b.diff / b.weeks)}` : b.eta ? `goal in about ${Math.ceil(b.eta)} weeks` : 'at goal: maintain'),
-    tile('Rest-day burn', `${kcalFmt(b.restBurn)}<small>kcal</small>`, 'Garmin, last 4 weeks'),
+    tile('Rest-day burn', `${kcalFmt(b.restBurn)}<small>kcal</small>`, b.correction ? `Garmin, last 4 weeks, ${b.correction > 0 ? '+' : '−'}${kcalFmt(Math.abs(b.correction))} from your energy balance` : 'Garmin, last 4 weeks'),
   ].join('')}</div>`;
 
   const notes = [];

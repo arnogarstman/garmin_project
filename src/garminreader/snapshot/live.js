@@ -35,7 +35,7 @@ function liveRows(result) {
 }
 
 function clearPage() {
-  for (const id of ['tiles', 'potential', 'wreview', 'mealstats', 'mealbudget', 'mealplan', 'review', 'race', 'coach', 'plan', 'ch-pred', 'cap-pred', 'ch-km', 'cap-km', 'ch-vo2', 'cap-vo2', 'ch-load', 'cap-load', 'ch-zones', 'cal', 'calkeys', 'health', 'built', 'histkpis', 'ch-vol', 'cap-vol', 'tbl-vol', 'ch-heat', 'heat-legend', 'cap-heat', 'ch-pace', 'cap-pace', 'ch-rhr', 'ch-hrv', 'ch-weight', 'ch-when', 'cap-when', 'ch-dist', 'cap-dist', 'ch-mix', 'records', 'histlog', 'evkey-training', 'evkey-history', 'sleepkpis', 'sleepfind', 'ch-sleep', 'cap-sleep', 'ch-sleeprun', 'ch-sleeprunb', 'tbl-sleeprun', 'ch-sleephrv', 'ch-sleeprhr', 'ch-sleepready', 'ch-sleepdw', 'ch-sleepwk']) $(id).textContent = '';
+  for (const id of ['tiles', 'potential', 'wreview', 'mealstats', 'mealbudget', 'mealplan', 'review', 'race', 'coach', 'plan', 'ch-pred', 'cap-pred', 'ch-km', 'cap-km', 'ch-vo2', 'cap-vo2', 'ch-load', 'cap-load', 'ch-zones', 'cal', 'calkeys', 'health', 'built', 'histkpis', 'ch-vol', 'cap-vol', 'tbl-vol', 'ch-heat', 'heat-legend', 'cap-heat', 'ch-pace', 'cap-pace', 'ch-rhr', 'ch-hrv', 'ch-weight', 'ch-when', 'cap-when', 'ch-dist', 'cap-dist', 'ch-mix', 'records', 'histlog', 'evkey-training', 'evkey-history', 'sleepkpis', 'sleepfind', 'ch-sleep', 'cap-sleep', 'ch-sleeprun', 'ch-sleeprunb', 'tbl-sleeprun', 'ch-sleephrv', 'ch-sleeprhr', 'ch-sleepready', 'ch-sleepdw', 'ch-sleepwk', 'fitkpis', 'ch-hrref', 'ch-ef', 'leg-hrpace', 'ch-hrpace', 'cap-hrpace', 'fitfind', 'ch-drivers', 'ch-driver', 'tbl-blocks', 'energykpis', 'leg-energy', 'ch-energy', 'cap-energy']) $(id).textContent = '';
 }
 
 async function startLive(cfg) {

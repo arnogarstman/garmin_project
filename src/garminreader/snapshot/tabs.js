@@ -1,4 +1,4 @@
-// Tabs: the sections grouped by what you come for (today, training, nutrition, sleep, history, about).
+// Tabs: the sections grouped by what you come for (today, training, fitness, nutrition, sleep, history, about).
 // Every tab renders all the time, so switching only shows another panel. The open tab is in the
 // address (#training) and remembered in this browser, for a reload or the next visit.
 const TAB_KEY = 'garminreader.tab';

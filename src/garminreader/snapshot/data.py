@@ -113,6 +113,31 @@ QUERIES: dict[str, str] = {
         where calendar_date > current_date - interval {days} day
         order by 1
     """,
+    "blocks": """
+        select week_start as wk, round(run_km_per_week, 1) as km, round(runs_per_week, 2) as rpw,
+               round(longest_run_km, 1) as lr, round(load_per_week) as load, round(easy_share, 3) as easy,
+               round(tempo_share, 3) as tempo, round(hard_share, 3) as hard, hm_before_s as hm0,
+               hm_after_s as hm1, round(hm_change, 4) as dhm, round(vo2max_change, 1) as dvo2
+        from marts.fct_training_blocks
+        where week_start > current_date - interval {days} day
+        order by 1
+    """,
+    "aerobic": """
+        select week_start as wk, runs, round(efficiency, 4) as ef, ref_pace_min_per_km as ref,
+               round(hr_at_ref_pace, 1) as hr_ref
+        from marts.fct_aerobic_fitness
+        where week_start > current_date - interval {days} day
+        order by 1
+    """,
+    "balance": """
+        select calendar_date as d, round(burn_kcal) as burn, round(weight_kg, 2) as weight, weigh_ins,
+               round(weight_kg_per_week, 3) as kg_wk, round(balance_kcal) as bal, round(implied_intake_kcal) as intake
+        from marts.fct_energy_balance
+        where calendar_date > current_date - interval {days} day
+          and (dayofweek(calendar_date) = 0
+               or calendar_date = (select max(calendar_date) from marts.fct_energy_balance))
+        order by 1
+    """,
     "lag": "select * from marts.rpt_metric_lag order by metric",
     "status": "select * from marts.rpt_current_status",
 }

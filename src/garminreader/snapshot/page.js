@@ -661,9 +661,11 @@ function renderPage(D) {
 
   renderReviews(D.reviews);
   renderMeals(D);
+  renderEnergy(D);
 
   renderHistory(D);
   renderSleep(D);
+  renderFitness(D);
 
   // Data health
   $('health').innerHTML = D.lag.map(r => `<div><i style="background:${r.days_behind > 1 ? css('warn') : css('good')}"></i>${esc(lower(r.metric))} <span class="eyebrow">${r.days_behind}d behind · ${r.completeness_pct}%</span></div>`).join('');

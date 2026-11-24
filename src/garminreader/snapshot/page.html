@@ -303,7 +303,7 @@ footer{font-size:.8rem;color:var(--muted)}
   <p class="livestate" id="livestate" role="status" hidden></p><button class="livebtn" id="livebtn" type="button" hidden>Run the query</button>
 </header>
 
-<nav class="tabs" role="tablist" aria-label="Sections"><button type="button" role="tab" id="tab-today" aria-controls="panel-today" data-tab="today">Today</button><button type="button" role="tab" id="tab-training" aria-controls="panel-training" data-tab="training">Training</button><button type="button" role="tab" id="tab-nutrition" aria-controls="panel-nutrition" data-tab="nutrition">Nutrition</button><button type="button" role="tab" id="tab-sleep" aria-controls="panel-sleep" data-tab="sleep">Sleep</button><button type="button" role="tab" id="tab-history" aria-controls="panel-history" data-tab="history">History</button><button type="button" role="tab" id="tab-about" aria-controls="panel-about" data-tab="about">About</button></nav>
+<nav class="tabs" role="tablist" aria-label="Sections"><button type="button" role="tab" id="tab-today" aria-controls="panel-today" data-tab="today">Today</button><button type="button" role="tab" id="tab-training" aria-controls="panel-training" data-tab="training">Training</button><button type="button" role="tab" id="tab-fitness" aria-controls="panel-fitness" data-tab="fitness">Fitness</button><button type="button" role="tab" id="tab-nutrition" aria-controls="panel-nutrition" data-tab="nutrition">Nutrition</button><button type="button" role="tab" id="tab-sleep" aria-controls="panel-sleep" data-tab="sleep">Sleep</button><button type="button" role="tab" id="tab-history" aria-controls="panel-history" data-tab="history">History</button><button type="button" role="tab" id="tab-about" aria-controls="panel-about" data-tab="about">About</button></nav>
 
 <div class="panel" role="tabpanel" id="panel-today" aria-labelledby="tab-today">
 <section>
@@ -370,6 +370,35 @@ footer{font-size:.8rem;color:var(--muted)}
 </section>
 </div>
 
+<div class="panel" role="tabpanel" id="panel-fitness" aria-labelledby="tab-fitness">
+<section>
+  <div class="sechead"><h2>Aerobic fitness</h2><span class="eyebrow">marts.fct_aerobic_fitness</span></div>
+  <div id="fitkpis"></div>
+  <div class="grid2">
+    <div class="chart"><h3>Heart rate at your reference pace</h3><div id="ch-hrref"></div></div>
+    <div class="chart"><h3>Metres per heartbeat</h3><div id="ch-ef"></div></div>
+  </div>
+  <p class="cap">Each week reads the steady runs of the 6 weeks up to it. Lower heart rate for the same pace, and more metres per beat, mean a fitter aerobic engine; heat, fatigue and hills push both the wrong way for a while.</p>
+  <div class="chart">
+    <h3>Same pace, less heart rate?</h3>
+    <div class="legend" id="leg-hrpace"></div>
+    <div id="ch-hrpace"></div>
+    <div class="cap" id="cap-hrpace"></div>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>What moves your half marathon prediction</h2><span class="eyebrow">marts.fct_training_blocks</span></div>
+  <div id="fitfind"></div>
+  <div class="grid2">
+    <div class="chart"><h3>Each driver against the gain</h3><div id="ch-drivers"></div></div>
+    <div class="chart"><h3 id="h-driver">Strongest driver</h3><div id="ch-driver"></div></div>
+  </div>
+  <details class="tview"><summary>Show every training block</summary><div class="tbl" id="tbl-blocks"></div></details>
+  <p class="cap">A block is 4 weeks of training; its gain is how much faster Garmin's half marathon prediction got from the day before it to 2 weeks after it. Each driver is correlated with that gain with the starting prediction held fixed, because a slower start leaves more to gain. Blocks overlap by 3 weeks, so only a quarter of them count as independent: verdicts stay cautious until there are 5 or more. Predictions are Garmin's model, mostly fed by VO2 max, so this shows what moves Garmin's estimate, which a race result confirms best.</p>
+</section>
+</div>
+
 <div class="panel" role="tabpanel" id="panel-nutrition" aria-labelledby="tab-nutrition">
 <section>
   <div class="sechead"><h2>Meal plan</h2><span class="eyebrow">Weight goal · marts.fct_daily_energy</span></div>
@@ -377,6 +406,18 @@ footer{font-size:.8rem;color:var(--muted)}
   <div id="weightform" class="goalform"></div>
   <div id="mealbudget"></div>
   <div class="mealplan" id="mealplan"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Energy balance</h2><span class="eyebrow">marts.fct_energy_balance</span></div>
+  <div id="energykpis"></div>
+  <div class="chart">
+    <h3>Garmin's burn against the intake your weight implies</h3>
+    <div class="legend" id="leg-energy"></div>
+    <div id="ch-energy"></div>
+    <div class="cap" id="cap-energy"></div>
+  </div>
+  <div id="energyform" class="goalform"></div>
 </section>
 </div>
 
