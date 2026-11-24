@@ -80,6 +80,13 @@ MARTS = {
                30.0 as duration_min, 'AEROBIC_BASE' as training_effect, 'NOT_COMPLETE' as status, false as is_long,
                false as is_rest_day, 'Halve Marathon plan' as plan_name, date '2027-01-10' as plan_end_date
         from range(-3, 4) t(i)""",
+    "fct_sleep_effects": """
+        select current_date - i::int as calendar_date, 7.0 + i / 10 as sleep_hours, 80 as sleep_score,
+               7.2 as sleep_hours_7d, 0.2 as deep_share, 0.25 as rem_share, 23.5 as bedtime_hour,
+               50 as hrv, 48 as resting_hr, 70 as readiness_score, (i % 2)::bigint as runs,
+               8.0 as run_km, 5.5 as run_pace_min_per_km, 150.0 as run_avg_hr, 0.01 as run_efficiency_vs_base,
+               80.0 as weight_kg, -0.1 as weight_change_kg
+        from range(40) t(i)""",
     "fct_workout_reviews": """
         select current_date - i::int as activity_date, (current_date - i::int)::timestamp as started_at_local,
                'Run ' || i as activity_name, 'running' as activity_type, 'good' as status, 'Fine' as headline,
@@ -127,3 +134,14 @@ def test_energy_covers_six_weeks_oldest_first(tmp_path: Path) -> None:
     assert len(rows) == 42
     assert [r["d"] for r in rows] == sorted(r["d"] for r in rows)
     assert {"kcal", "workouts", "workout_kcal", "run_km", "weight"} <= set(rows[0])
+
+
+def test_sleep_covers_the_period_oldest_first(tmp_path: Path) -> None:
+    """The Sleep tab reads one row per night in date order, within the period."""
+    con = duckdb.connect(str(tmp_path / "w.duckdb"))
+    con.execute("create schema marts")
+    con.execute(f"create table marts.fct_sleep_effects as {MARTS['fct_sleep_effects']}")
+    rows = data._rows(con, data.live_queries(days=30)["sleep"])
+    assert len(rows) == 30
+    assert [r["d"] for r in rows] == sorted(r["d"] for r in rows)
+    assert {"h", "score", "h7", "ef", "hrv", "rhr", "ready", "weight", "dw", "bed"} <= set(rows[0])

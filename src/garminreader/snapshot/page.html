@@ -49,6 +49,8 @@ header{display:grid;gap:12px}
 #records .tile,#histkpis .tile{border:1px solid var(--grid)}
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:24px 28px}
 .grid3 .chart{min-width:0}
+.sleepfind{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;align-items:start}
+.card.link{border-top-color:var(--c5)}
 .heatlegend{display:flex;align-items:center;gap:3px;font-size:.78rem;color:var(--ink2)}
 .heatlegend i{width:12px;height:12px;border-radius:2px;display:block}
 .heatlegend span:first-child{margin-right:4px}.heatlegend span:last-child{margin-left:4px}
@@ -301,7 +303,7 @@ footer{font-size:.8rem;color:var(--muted)}
   <p class="livestate" id="livestate" role="status" hidden></p><button class="livebtn" id="livebtn" type="button" hidden>Run the query</button>
 </header>
 
-<nav class="tabs" role="tablist" aria-label="Sections"><button type="button" role="tab" id="tab-today" aria-controls="panel-today" data-tab="today">Today</button><button type="button" role="tab" id="tab-training" aria-controls="panel-training" data-tab="training">Training</button><button type="button" role="tab" id="tab-nutrition" aria-controls="panel-nutrition" data-tab="nutrition">Nutrition</button><button type="button" role="tab" id="tab-history" aria-controls="panel-history" data-tab="history">History</button><button type="button" role="tab" id="tab-about" aria-controls="panel-about" data-tab="about">About</button></nav>
+<nav class="tabs" role="tablist" aria-label="Sections"><button type="button" role="tab" id="tab-today" aria-controls="panel-today" data-tab="today">Today</button><button type="button" role="tab" id="tab-training" aria-controls="panel-training" data-tab="training">Training</button><button type="button" role="tab" id="tab-nutrition" aria-controls="panel-nutrition" data-tab="nutrition">Nutrition</button><button type="button" role="tab" id="tab-sleep" aria-controls="panel-sleep" data-tab="sleep">Sleep</button><button type="button" role="tab" id="tab-history" aria-controls="panel-history" data-tab="history">History</button><button type="button" role="tab" id="tab-about" aria-controls="panel-about" data-tab="about">About</button></nav>
 
 <div class="panel" role="tabpanel" id="panel-today" aria-labelledby="tab-today">
 <section>
@@ -375,6 +377,60 @@ footer{font-size:.8rem;color:var(--muted)}
   <div id="weightform" class="goalform"></div>
   <div id="mealbudget"></div>
   <div class="mealplan" id="mealplan"></div>
+</section>
+</div>
+
+<div class="panel" role="tabpanel" id="panel-sleep" aria-labelledby="tab-sleep">
+<div class="histfilter" id="sleepfilter"></div>
+
+<section>
+  <div class="sechead"><h2>Sleep</h2><span class="eyebrow">marts.fct_sleep_effects</span></div>
+  <div id="sleepkpis"></div>
+  <div class="chart">
+    <h3>Sleep per night</h3>
+    <div id="ch-sleep"></div>
+    <div class="cap" id="cap-sleep"></div>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>What sleep does for you</h2><span class="eyebrow">Best-slept third of nights against the worst</span></div>
+  <div class="sleepfind" id="sleepfind"></div>
+</section>
+
+<section>
+  <div class="sechead"><h2>Running</h2><span class="eyebrow">Speed per heartbeat against your last 6 weeks</span></div>
+  <div class="grid2">
+    <div class="chart"><h3>Run efficiency after each night</h3><div id="ch-sleeprun"></div></div>
+    <div class="chart"><h3>Run efficiency by sleep the night before</h3><div id="ch-sleeprunb"></div>
+      <details class="tview"><summary>Show the runs per group</summary><div class="tbl" id="tbl-sleeprun"></div></details></div>
+  </div>
+  <p class="cap" id="cap-sleeprun"></p>
+</section>
+
+<section>
+  <div class="sechead"><h2>Recovery</h2><span class="eyebrow">The morning after</span></div>
+  <div class="grid3">
+    <div class="chart"><h3>HRV</h3><div id="ch-sleephrv"></div></div>
+    <div class="chart"><h3>Resting heart rate</h3><div id="ch-sleeprhr"></div></div>
+    <div class="chart"><h3>Readiness</h3><div id="ch-sleepready"></div></div>
+  </div>
+  <p class="cap">How sleep reaches running: recovery readings Garmin takes during the night, by third of nights.</p>
+</section>
+
+<section>
+  <div class="sechead"><h2>Weight</h2><span class="eyebrow">Day to day · week to week</span></div>
+  <div class="grid2">
+    <div class="chart"><h3>Weigh-in change from the morning before</h3><div id="ch-sleepdw"></div>
+      <p class="cap">Only mornings with a weigh-in the day before. Day-to-day changes are mostly water, food and glycogen.</p></div>
+    <div class="chart"><h3>Weekly sleep against weight change</h3><div id="ch-sleepwk"></div>
+      <p class="cap">Each dot is a week: its average sleep against its average weight minus the week before.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="sechead"><h2>How to read this</h2><span class="eyebrow">Method and limits</span></div>
+  <p>Nights are split into thirds by the chosen measure, so each group holds about as many nights. A finding compares the best-slept third with the worst: the difference, its 95% interval and the correlation over all nights. It is called a link when the interval stays clear of zero and the correlation is unlikely to be chance (p under 0.05). Readiness counts last night's sleep among its inputs, and the sleep score weighs overnight stress, so part of their link with recovery is built in; hours asleep are the cleaner measure there. These are associations in your own data, not proof of cause: hard training, travel, illness or stress can shorten sleep and slow runs at once, and a few months of data move the numbers as nights are added.</p>
 </section>
 </div>
 

@@ -103,6 +103,16 @@ QUERIES: dict[str, str] = {
         where calendar_date > current_date - interval 56 day
         order by calendar_date, workout_name
     """,
+    "sleep": """
+        select calendar_date as d, round(sleep_hours, 2) as h, sleep_score as score, round(sleep_hours_7d, 2) as h7,
+               round(deep_share, 3) as deep, round(rem_share, 3) as rem, round(bedtime_hour, 2) as bed,
+               hrv, resting_hr as rhr, readiness_score as ready, runs, round(run_km, 1) as km,
+               round(run_pace_min_per_km, 2) as pace, round(run_avg_hr) as hr, round(run_efficiency_vs_base, 4) as ef,
+               round(weight_kg, 2) as weight, round(weight_change_kg, 2) as dw
+        from marts.fct_sleep_effects
+        where calendar_date > current_date - interval {days} day
+        order by 1
+    """,
     "lag": "select * from marts.rpt_metric_lag order by metric",
     "status": "select * from marts.rpt_current_status",
 }
