@@ -397,6 +397,18 @@ footer{font-size:.8rem;color:var(--muted)}
   <details class="tview"><summary>Show every training block</summary><div class="tbl" id="tbl-blocks"></div></details>
   <p class="cap">A block is 4 weeks of training; its gain is how much faster Garmin's half marathon prediction got from the day before it to 2 weeks after it. Each driver is correlated with that gain with the starting prediction held fixed, because a slower start leaves more to gain. Blocks overlap by 3 weeks, so only a quarter of them count as independent: verdicts stay cautious until there are 5 or more. Predictions are Garmin's model, mostly fed by VO2 max, so this shows what moves Garmin's estimate, which a race result confirms best.</p>
 </section>
+
+<section>
+  <div class="sechead"><h2>When you run</h2><span class="eyebrow">marts.fct_run_efficiency</span></div>
+  <div class="sleepfind" id="timefind"></div>
+  <div class="grid2">
+    <div class="chart"><h3>Efficiency by time of day</h3><div id="ch-tod"></div>
+      <details class="tview"><summary>Show the runs per time of day</summary><div class="tbl" id="tbl-tod"></div></details></div>
+    <div class="chart"><h3>Sleep after a run, by how close to bedtime it ended</h3><div id="ch-bedgap"></div></div>
+  </div>
+  <div class="chart"><h3>Overnight HRV after a run</h3><div id="ch-bedgrp"></div></div>
+  <p class="cap">Efficiency is speed per heartbeat against your own runs of the 6 weeks before, so it compares runs of different months fairly; the whiskers are 95% intervals of each group's average, and pale bars rest on fewer than five runs. Sleep uses each day's last run and the night after it, against nights after a day without a run. Heat favours mornings in summer, and hard sessions cluster at some times of day, so read a difference together with the load in the table.</p>
+</section>
 </div>
 
 <div class="panel" role="tabpanel" id="panel-nutrition" aria-labelledby="tab-nutrition">

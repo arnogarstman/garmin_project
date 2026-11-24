@@ -103,6 +103,12 @@ MARTS = {
                10::bigint as weigh_ins, -0.2 as weight_kg_per_week, -220.0 as balance_kcal,
                2580.0 as implied_intake_kcal
         from range(60) t(i)""",
+    "fct_run_efficiency": """
+        select current_date - i::int as activity_date, (current_date - i::int)::timestamp + interval 19 hour
+                   as started_at_local, 19.0 as start_hour, 'evening' as time_of_day, 8.0 as distance_km,
+               5.5 as pace_min_per_km, 150.0 as avg_hr, 60.0 as training_load, 0.02 as efficiency_vs_base,
+               7.2 as next_sleep_hours, 80 as next_sleep_score, 55 as next_hrv, 3.5 as hours_to_bedtime
+        from range(10) t(i)""",
     "fct_workout_reviews": """
         select current_date - i::int as activity_date, (current_date - i::int)::timestamp as started_at_local,
                'Run ' || i as activity_name, 'running' as activity_type, 'good' as status, 'Fine' as headline,

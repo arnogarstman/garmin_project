@@ -37,18 +37,21 @@ function partialR(rows) {
 }
 
 // A scatter with one or more series, each with its own colour and least-squares line.
-function multiScatter(id, series, { xLabel, fmtX, fmtY, W = 520, H = 280, xTicks, yTicks }) {
+// `hline` ({y, label}) draws a dashed reference level, such as the average of a comparison group.
+function multiScatter(id, series, { xLabel, fmtX, fmtY, W = 520, H = 280, xTicks, yTicks, hline = null }) {
   const el = $(id), all = series.flatMap(s => s.pts);
   if (all.length < 3) { el.innerHTML = '<p class="cap">Not enough data yet.</p>'; return; }
   const L = 52, R = 12, T = 10, B = 40, iw = W - L - R, ih = H - T - B;
   const xt = xTicks || niceTicks(Math.min(...all.map(p => p.x)), Math.max(...all.map(p => p.x)), 5);
-  const yt = yTicks || niceTicks(Math.min(...all.map(p => p.y)), Math.max(...all.map(p => p.y)), 4);
+  const ys = all.map(p => p.y).concat(hline ? [hline.y] : []);
+  const yt = yTicks || niceTicks(Math.min(...ys), Math.max(...ys), 4);
   const X = v => L + (v - xt[0]) / (xt[xt.length - 1] - xt[0]) * iw, Y = v => T + ih - (v - yt[0]) / (yt[yt.length - 1] - yt[0]) * ih;
   let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(series.map(x => `${x.name}: ${x.pts.length}`).join('; '))}">`;
   for (const v of yt) s += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css('grid')}"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${fmtY(v, true)}</text>`;
   for (const v of xt) s += `<line x1="${X(v)}" x2="${X(v)}" y1="${T + ih}" y2="${T + ih + 4}" stroke="${css('muted')}"/><text x="${X(v)}" y="${T + ih + 16}" text-anchor="middle">${fmtX(v, true)}</text>`;
   s += `<text x="${L + iw / 2}" y="${H - 4}" text-anchor="middle">${esc(xLabel)}</text>`;
   if (yt[0] < 0 && yt[yt.length - 1] > 0) s += `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="${css('muted')}"/>`;
+  if (hline) s += `<line x1="${L}" x2="${W - R}" y1="${Y(hline.y)}" y2="${Y(hline.y)}" stroke="${css('ink2')}" stroke-dasharray="5 4"/><text x="${W - R}" y="${Y(hline.y) - 5}" text-anchor="end" style="fill:${css('ink2')}">${esc(hline.label)}</text>`;
   for (const sr of series) {
     for (const p of sr.pts) s += `<circle class="mark" cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="${p.r || 4}" fill="${css(sr.color)}" fill-opacity=".6" tabindex="0"${tipAttr(p.tv, p.tl)}/>`;
     const c = sr.fit !== false && pearson(sr.pts.map(p => [p.x, p.y]));

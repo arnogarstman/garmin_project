@@ -138,6 +138,15 @@ QUERIES: dict[str, str] = {
                or calendar_date = (select max(calendar_date) from marts.fct_energy_balance))
         order by 1
     """,
+    "timing": """
+        select activity_date, round(start_hour, 2) as start_h, time_of_day as tod, round(distance_km, 1) as km,
+               round(pace_min_per_km, 2) as pace, round(avg_hr) as avg_hr, round(training_load) as load,
+               round(efficiency_vs_base, 4) as ev, round(next_sleep_hours, 2) as next_h,
+               next_sleep_score as next_score, next_hrv, round(hours_to_bedtime, 2) as to_bed
+        from marts.fct_run_efficiency
+        where activity_date > current_date - interval {days} day
+        order by started_at_local
+    """,
     "lag": "select * from marts.rpt_metric_lag order by metric",
     "status": "select * from marts.rpt_current_status",
 }

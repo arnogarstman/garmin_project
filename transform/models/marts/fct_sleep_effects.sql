@@ -2,9 +2,8 @@
 -- the morning's recovery readings, the day's runs and the morning weigh-in. The base for asking
 -- whether a night's sleep shows up in running and weight.
 --
--- Run performance is aerobic efficiency (speed in m/min per beat of average heart rate), compared
--- with the runner's own runs of the 42 days before, so fitness gained over months does not read as
--- an effect of sleep. Races and runs under 2 km or without heart rate are left out.
+-- Run performance is aerobic efficiency against the runner's own runs of the 42 days before (see
+-- fct_run_efficiency), so fitness gained over months does not read as an effect of sleep.
 with sleep as (
     select
         calendar_date,
@@ -20,36 +19,6 @@ with sleep as (
     where sleep_seconds > 0
 ),
 
-runs as (
-    select
-        activity_date,
-        started_at_local,
-        distance_km,
-        duration_min,
-        avg_hr,
-        training_load,
-        (1000 / pace_min_per_km) / avg_hr as efficiency
-    from {{ ref('fct_activities') }}
-    where
-        activity_type ilike '%run%'
-        and distance_km >= 2
-        and avg_hr > 0
-        and pace_min_per_km is not null
-        and not coalesce(is_tagged_race, false)
-),
-
-runs_vs_base as (
-    select
-        *,
-        avg(efficiency) over recent as base_efficiency,
-        count(*) over recent as base_runs
-    from runs
-    window recent as (
-        order by started_at_local
-        range between interval 42 day preceding and interval 1 minute preceding
-    )
-),
-
 run_days as (
     select
         activity_date,
@@ -59,9 +28,9 @@ run_days as (
         sum(avg_hr * duration_min) / sum(duration_min) as run_avg_hr,
         sum(training_load) as run_load,
         sum(efficiency * distance_km) / sum(distance_km) as run_efficiency,
-        sum(case when base_runs >= 3 then (efficiency / base_efficiency - 1) * distance_km end)
-        / sum(case when base_runs >= 3 then distance_km end) as run_efficiency_vs_base
-    from runs_vs_base
+        sum(efficiency_vs_base * distance_km)
+        / sum(case when efficiency_vs_base is not null then distance_km end) as run_efficiency_vs_base
+    from {{ ref('fct_run_efficiency') }}
     group by activity_date
 ),
 
