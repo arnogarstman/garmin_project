@@ -34,7 +34,10 @@ def begin_login(email: str, password: str) -> tuple[Garmin, str]:
     """Start a login with credentials. Returns (client, status) where status
     is "ok" (fully logged in) or "mfa" (needs a verification code)."""
     api = Garmin(email=email, password=password, return_on_mfa=True)
-    mfa_status, _ = api.login(tokenstore=str(TOKEN_DIR))
+    # A fresh login: given a tokenstore (or GARMINTOKENS), garminconnect resumes the saved session
+    # first and fails on one Garmin has refused instead of falling back to the credentials.
+    os.environ.pop("GARMINTOKENS", None)
+    mfa_status, _ = api.login()
     if mfa_status == "needs_mfa":
         return api, "mfa"
     # With return_on_mfa=True, garminconnect returns early on a non-MFA login

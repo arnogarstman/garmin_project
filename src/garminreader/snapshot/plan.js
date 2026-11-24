@@ -152,6 +152,9 @@ function sessionWhy(s, plan, w, ctx, date) {
       ? `Keeps the endurance you have: you already reach ${sig.longest.toFixed(1)} km, so the plan holds long runs around ${plan.longGoal} km where they build fitness without long recovery. `
       : `Builds the endurance to finish strong: your longest recent run is ${num(sig.longest) ? sig.longest.toFixed(1) : '–'} km and this plan takes it to about ${plan.longGoal} km. `) +
       (num(sig.drift) && sig.drift > 3 ? `Your heart rate drifts ${f0(sig.drift)}% on long runs: start slower and take fluid and carbohydrate every 30 to 40 minutes.` : 'Run it easy; the time on your feet is the point, not the pace.');
+    case 'swim': return SWIM_KINDS[s.swim]?.row
+      ? 'An aerobic session for heart and legs without the impact of running: it keeps the volume up while your knees get a break from pounding. Drive with the legs, then lean back, then pull; keep it conversational.'
+      : 'Aerobic work without impact: fitness for the run, rest for joints and tendons.';
     case 'shakeout': return 'Loosens the legs and settles nerves before the race without costing any freshness.';
     case 'race': return `Everything leads here. Start at ${pace(pc.race)} /km and let the second half be your fastest.`;
     default: return '';
@@ -217,7 +220,7 @@ function coachCell(date, past) {
 function plannedOn(plan, ctx, date) {
   const { G, sig } = ctx, day = t(date), today = iso(new Date(sig.x1));
   const wk = plan.weeks.find(x => { const k = Math.round((day - x.start) / DAY); return k >= 0 && k < 7; });
-  const s = rehabSession(wk ? weekSessions(plan, wk, G).get(Math.round((day - wk.start) / DAY)) : null, date, plan);
+  const s = rehabSession(wk ? weeklyRow(weekSessions(plan, wk, G), Math.round((day - wk.start) / DAY), wk) : null, date, plan);
   if (s && date === today && sig.recovery === 'crit' && !['easy', 'long', 'race', 'shakeout'].includes(s.kind)) return { ...s, kind: 'easy', title: 'Easy run (swapped)', detail: `Recovery is low today: ${Math.round(s.km)} km easy instead of ${s.title.toLowerCase()}; do the session later in the week if you feel fresh` };
   return s ? { ...s, km: s.kind === 'race' ? plan.race.km : s.km } : null;
 }
