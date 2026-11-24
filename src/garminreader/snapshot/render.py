@@ -19,8 +19,9 @@ APP_MARKER = "/*APP*/"
 # swims), energy.js the energy balance that can correct the meal plan's burn, history.js the History
 # tab (after meals.js, whose helpers it uses), sleep.js the Sleep tab (after history.js, whose charts
 # and tooltips it uses), fitness.js the Fitness tab (after sleep.js, whose statistics it uses),
-# timing.js its time-of-day analysis (after fitness.js, whose scatter it uses), goal.js the race
-# form, tabs.js the tabs, live.js boots the page (live through a connector, or embedded data).
+# timing.js its time-of-day analysis (after fitness.js, whose scatter it uses), form.js the Form tab
+# (after history.js, whose charts it uses), weekly.js Claude's weekly report, goal.js the race form,
+# tabs.js the tabs, live.js boots the page (live through a connector, or embedded data).
 SCRIPTS = (
     "page.js",
     "review.js",
@@ -36,6 +37,8 @@ SCRIPTS = (
     "sleep.js",
     "fitness.js",
     "timing.js",
+    "form.js",
+    "weekly.js",
     "goal.js",
     "tabs.js",
     "live.js",

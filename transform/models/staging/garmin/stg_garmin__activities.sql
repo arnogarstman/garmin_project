@@ -29,6 +29,14 @@ select
     (activity ->> '$.hrTimeInZone_3')::double as hr_zone_3_s,
     (activity ->> '$.hrTimeInZone_4')::double as hr_zone_4_s,
     (activity ->> '$.hrTimeInZone_5')::double as hr_zone_5_s,
+    -- Running dynamics: from the watch's wrist sensor, or measured at the chest by an HRM 600 / HRM-Pro.
+    (activity ->> '$.averageRunningCadenceInStepsPerMinute')::double as avg_cadence_spm,
+    (activity ->> '$.avgStrideLength')::double as avg_stride_length_cm,
+    (activity ->> '$.avgGroundContactTime')::double as avg_ground_contact_ms,
+    (activity ->> '$.avgGroundContactBalance')::double as avg_ground_contact_balance_left_pct,
+    (activity ->> '$.avgVerticalOscillation')::double as avg_vertical_oscillation_cm,
+    (activity ->> '$.avgVerticalRatio')::double as avg_vertical_ratio_pct,
+    (activity ->> '$.avgPower')::double as avg_power_w,
     loaded_at_utc
 from activities
 qualify row_number() over (partition by activity_id order by loaded_at_utc desc) = 1

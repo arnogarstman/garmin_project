@@ -23,6 +23,19 @@ models:
       - name: activity_date
         data_tests: [not_null]
 
+  - name: fct_running_form
+    description: >
+      Running dynamics per run (cadence, stride length, ground contact time and balance, vertical
+      oscillation and ratio, power) with pace and heart rate. is_chest_strap marks the runs measured
+      by a chest strap (HRM 600, HRM-Pro), the only source of ground contact balance.
+    columns:
+      - name: activity_id
+        data_tests: [unique, not_null]
+      - name: activity_date
+        data_tests: [not_null]
+      - name: is_chest_strap
+        data_tests: [not_null]
+
   - name: fct_daily_energy
     description: >
       Energy per day: Garmin's total calories burned (resting plus active; today's is partial),
