@@ -92,7 +92,13 @@ function renderPage(D) {
   $('footer').textContent = 'Personal Garmin data. Snapshot of the marts at build time; refreshed by the daily run.';
 
   const days = D.daily, st = D.status || {};
-  const x1 = days.length ? t(days[days.length - 1].d) : Date.now(), x0 = days.length ? t(days[0].d) : x1 - 365 * DAY;
+  // Today is the calendar day, never the last day with data: when the refresh stalls, the plan, the
+  // weeks and the charts still run to today, and the page says how far behind the data is.
+  const dataEnd = days.length ? t(days[days.length - 1].d) : null, clock = t(iso(new Date()));
+  const x1 = dataEnd !== null && dataEnd > clock ? dataEnd : clock, x0 = days.length ? t(days[0].d) : x1 - 365 * DAY;
+  const behind = dataEnd === null ? null : Math.round((clock - dataEnd) / DAY);
+  $('stale').hidden = !(behind > 1);
+  $('stale').textContent = behind > 1 ? `Your Garmin data runs to ${dayName(iso(new Date(dataEnd)))} ${fmtDate(iso(new Date(dataEnd)))}, ${behind} days ago: the daily refresh has not loaded anything since. Today's figures and the plan's done or missed wait for it.` : '';
 
   // A device can report a stale first VO2 max reading; ignore leading values far from the 2-week median.
   const vo2Base = median(days.slice(0, 14).map(r => r.vo2max));
@@ -699,7 +705,7 @@ function renderZones(D) {
   }
 
   // Where your heart rate sits, in words: the last 4 weeks of runs on Garmin's own zone limits.
-  const days = D.daily || [], x1 = days.length ? t(days[days.length - 1].d) : Date.now();
+  const days = D.daily || [], x1 = Math.max(days.length ? t(days[days.length - 1].d) : 0, t(iso(new Date())));
   const runs = (D.runs || []).filter(r => num(r.avg_hr) && r.avg_hr > 0 && t(r.activity_date) > x1 - 28 * DAY);
   $('cap-hrscale').textContent = bands
     ? `Zone limits are Garmin's, ${ZONE_METHOD[hz.training_method] || 'from your watch'}; hover a zone for its hours.`
