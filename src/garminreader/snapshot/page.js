@@ -645,8 +645,12 @@ function renderPage(D) {
 
   renderReviews(D.reviews);
   renderMeals(D);
+  renderEnergy(D);
 
   renderHistory(D);
+  renderSleep(D);
+  renderFitness(D);
+  renderTiming(D);
   renderForm(D);
   renderWeekly(D);
 

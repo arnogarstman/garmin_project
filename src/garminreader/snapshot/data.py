@@ -103,6 +103,50 @@ QUERIES: dict[str, str] = {
         where calendar_date > current_date - interval 56 day
         order by calendar_date, workout_name
     """,
+    "sleep": """
+        select calendar_date as d, round(sleep_hours, 2) as h, sleep_score as score, round(sleep_hours_7d, 2) as h7,
+               round(deep_share, 3) as deep, round(rem_share, 3) as rem, round(bedtime_hour, 2) as bed,
+               hrv, resting_hr as rhr, readiness_score as ready, runs, round(run_km, 1) as km,
+               round(run_pace_min_per_km, 2) as pace, round(run_avg_hr) as hr, round(run_efficiency_vs_base, 4) as ef,
+               round(weight_kg, 2) as weight, round(weight_change_kg, 2) as dw
+        from marts.fct_sleep_effects
+        where calendar_date > current_date - interval {days} day
+        order by 1
+    """,
+    "blocks": """
+        select week_start as wk, round(run_km_per_week, 1) as km, round(runs_per_week, 2) as rpw,
+               round(longest_run_km, 1) as lr, round(load_per_week) as load, round(easy_share, 3) as easy,
+               round(tempo_share, 3) as tempo, round(hard_share, 3) as hard, hm_before_s as hm0,
+               hm_after_s as hm1, round(hm_change, 4) as dhm, round(vo2max_change, 1) as dvo2
+        from marts.fct_training_blocks
+        where week_start > current_date - interval {days} day
+        order by 1
+    """,
+    "aerobic": """
+        select week_start as wk, runs, round(efficiency, 4) as ef, ref_pace_min_per_km as ref,
+               round(hr_at_ref_pace, 1) as hr_ref
+        from marts.fct_aerobic_fitness
+        where week_start > current_date - interval {days} day
+        order by 1
+    """,
+    "balance": """
+        select calendar_date as d, round(burn_kcal) as burn, round(weight_kg, 2) as weight, weigh_ins,
+               round(weight_kg_per_week, 3) as kg_wk, round(balance_kcal) as bal, round(implied_intake_kcal) as intake
+        from marts.fct_energy_balance
+        where calendar_date > current_date - interval {days} day
+          and (dayofweek(calendar_date) = 0
+               or calendar_date = (select max(calendar_date) from marts.fct_energy_balance))
+        order by 1
+    """,
+    "timing": """
+        select activity_date, round(start_hour, 2) as start_h, time_of_day as tod, round(distance_km, 1) as km,
+               round(pace_min_per_km, 2) as pace, round(avg_hr) as avg_hr, round(training_load) as load,
+               round(efficiency_vs_base, 4) as ev, round(next_sleep_hours, 2) as next_h,
+               next_sleep_score as next_score, next_hrv, round(hours_to_bedtime, 2) as to_bed
+        from marts.fct_run_efficiency
+        where activity_date > current_date - interval {days} day
+        order by started_at_local
+    """,
     "form": """
         select activity_date, activity_name, round(distance_km, 1) as km, round(pace_min_per_km, 2) as pace,
                round(avg_hr) as avg_hr, round(cadence_spm, 1) as cadence, round(stride_length_m, 2) as stride,

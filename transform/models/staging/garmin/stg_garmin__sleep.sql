@@ -13,5 +13,8 @@ select
     payload ->> '$.dailySleepDTO.sleepScores.overall.qualifierKey' as sleep_score_qualifier,
     make_timestamp((payload ->> '$.dailySleepDTO.sleepStartTimestampGMT')::bigint * 1000) as sleep_started_at_utc,
     make_timestamp((payload ->> '$.dailySleepDTO.sleepEndTimestampGMT')::bigint * 1000) as sleep_ended_at_utc,
+    -- Garmin sends local wall-clock time as epoch milliseconds.
+    make_timestamp((payload ->> '$.dailySleepDTO.sleepStartTimestampLocal')::bigint * 1000) as sleep_started_at_local,
+    make_timestamp((payload ->> '$.dailySleepDTO.sleepEndTimestampLocal')::bigint * 1000) as sleep_ended_at_local,
     loaded_at_utc
 from latest

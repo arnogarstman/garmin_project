@@ -96,6 +96,64 @@ models:
           - value_in_range:
               arguments: {min_value: 0, max_value: 100}
 
+  - name: fct_sleep_effects
+    description: >
+      One row per night with sleep, on the day it ends, beside what followed: the morning's HRV,
+      resting heart rate and readiness, the day's runs (aerobic efficiency against the 42 days
+      before) and the morning weigh-in with its change since the day before. For the page's Sleep tab.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+      - name: run_efficiency_vs_base
+        description: >
+          Distance-weighted efficiency (m/min per bpm) of the day's runs relative to the runs of the
+          42 days before; 0.05 is 5% more speed per heartbeat. Null with fewer than 3 runs in that window.
+      - name: weight_change_kg
+        description: Weight minus the weigh-in of the day before; null without one.
+
+  - name: fct_run_efficiency
+    description: >
+      One row per comparable run (no races, at least 2 km, with heart rate): efficiency in m/min per
+      bpm against the runs of the 42 days before, the time of day it started, and the night after it
+      with the hours between the run's end and bedtime. For the Sleep tab and the time-of-day analysis.
+    columns:
+      - name: activity_id
+        data_tests: [unique, not_null]
+      - name: time_of_day
+        data_tests:
+          - accepted_values:
+              arguments: {values: [morning, midday, afternoon, evening]}
+
+  - name: fct_training_blocks
+    description: >
+      One row per week: the 4-week training block ending that week (volume, longest run, load and
+      the share of run time in easy, tempo and hard heart rate zones) and how the half marathon
+      prediction and VO2 max moved from the day before the block to 2 weeks after it. Blocks overlap
+      by three weeks. For the page's Fitness tab.
+    columns:
+      - name: week_start
+        data_tests: [unique, not_null]
+      - name: hm_change
+        description: Relative change in predicted half marathon time; negative is faster. Null until the outcome week has a reading.
+
+  - name: fct_aerobic_fitness
+    description: >
+      One row per week with steady runs in the 6 weeks up to it: distance-weighted efficiency
+      (m/min per bpm) and the heart rate a fixed reference pace costs, from a least-squares line of
+      average heart rate on pace. For the page's Fitness tab.
+    columns:
+      - name: week_start
+        data_tests: [unique, not_null]
+
+  - name: fct_energy_balance
+    description: >
+      One row per complete day with 21 or more days of burn in the 28 up to it: Garmin's average
+      daily burn, the weight trend (slope of the weigh-ins) and the intake that trend implies at
+      7700 kcal per kg. For the energy balance on the page's Nutrition tab.
+    columns:
+      - name: calendar_date
+        data_tests: [unique, not_null]
+
   - name: rpt_heart_rate_zones
     description: Current heart rate zone floors (bpm) per sport.
     columns:
@@ -154,3 +212,77 @@ unit_tests:
         - {activity_id: 2, race_distance: Half marathon, race_number: 2, improvement_vs_previous_s: 300, personal_best_to_date_s: 6000, is_personal_best: true, is_tagged_race: true}
         - {activity_id: 3, race_distance: Half marathon, race_number: 3, improvement_vs_previous_s: -100, personal_best_to_date_s: 6000, is_personal_best: false, is_tagged_race: false}
         - {activity_id: 4, race_distance: Marathon, race_number: 1, improvement_vs_previous_s: null, personal_best_to_date_s: 14000, is_personal_best: true, is_tagged_race: true}
+
+  - name: sleep_effects_compare_runs_with_their_base_and_weight_with_the_day_before
+    model: fct_sleep_effects
+    given:
+      - input: ref('stg_garmin__sleep')
+        rows:
+          - {calendar_date: "2026-05-03", sleep_seconds: 21600, sleep_started_at_local: "2026-05-03 00:30:00"}
+          - {calendar_date: "2026-05-05", sleep_seconds: 27000, sleep_started_at_local: "2026-05-04 23:30:00"}
+      - input: ref('fct_daily_health')
+        rows:
+          - {calendar_date: "2026-05-05", hrv_last_night_avg: 60}
+      - input: ref('fct_run_efficiency')
+        rows:
+          - {activity_date: "2026-05-05", distance_km: 10, duration_min: 50, avg_hr: 160, efficiency: 1.25, efficiency_vs_base: 0.25}
+      - input: ref('fct_daily_body')
+        rows:
+          - {calendar_date: "2026-05-02", weight_kg: 81.0}
+          - {calendar_date: "2026-05-04", weight_kg: 80.5}
+          - {calendar_date: "2026-05-05", weight_kg: 80.0}
+    expect:
+      rows:
+        - {calendar_date: "2026-05-03", sleep_hours: 6.0, bedtime_hour: 24.5, runs: 0, run_efficiency_vs_base: null, weight_change_kg: null, hrv: null}
+        - {calendar_date: "2026-05-05", sleep_hours: 7.5, bedtime_hour: 23.5, runs: 1, run_efficiency_vs_base: 0.25, weight_change_kg: -0.5, hrv: 60}
+
+  - name: energy_balance_turns_the_weight_trend_into_implied_intake
+    model: fct_energy_balance
+    given:
+      - input: ref('fct_daily_energy')
+        format: sql
+        rows: |
+          select date '2026-05-01' + i::int as calendar_date, 2800.0 as total_kcal,
+                 case when i % 4 = 0 then 80.0 - i * 0.125 end as weight_kg
+          from range(21) t(i)
+    expect:
+      rows:
+        - {calendar_date: "2026-05-21", burn_kcal: 2800.0, weigh_ins: 6, weight_kg_per_week: -0.875, balance_kcal: -962.5, implied_intake_kcal: 1837.5}
+
+  - name: aerobic_fitness_reads_heart_rate_at_the_reference_pace
+    model: fct_aerobic_fitness
+    given:
+      - input: ref('fct_activities')
+        rows:
+          - {activity_date: "2026-06-01", activity_type: running, distance_km: 8, pace_min_per_km: 5.0, avg_hr: 160, is_tagged_race: false}
+          - {activity_date: "2026-06-02", activity_type: running, distance_km: 8, pace_min_per_km: 5.5, avg_hr: 150, is_tagged_race: false}
+          - {activity_date: "2026-06-03", activity_type: running, distance_km: 8, pace_min_per_km: 6.0, avg_hr: 140, is_tagged_race: false}
+          - {activity_date: "2026-06-04", activity_type: running, distance_km: 8, pace_min_per_km: 5.5, avg_hr: 150, is_tagged_race: false}
+          - {activity_date: "2026-06-05", activity_type: running, distance_km: 21, pace_min_per_km: 4.5, avg_hr: 175, is_tagged_race: true}
+          - {activity_date: "2026-06-06", activity_type: walking, distance_km: 5, pace_min_per_km: 10.0, avg_hr: 100, is_tagged_race: false}
+    expect:
+      rows:
+        - {week_start: "2026-06-01", runs: 4, ref_pace_min_per_km: 5.5, hr_at_ref_pace: 150.0}
+
+  - name: run_efficiency_compares_with_the_six_weeks_before_and_finds_the_night_after
+    model: fct_run_efficiency
+    given:
+      - input: ref('fct_activities')
+        rows:
+          - {activity_id: 1, activity_date: "2026-04-01", started_at_local: "2026-04-01 08:00:00", activity_type: running, distance_km: 10, duration_min: 50, pace_min_per_km: 5, avg_hr: 200, is_tagged_race: false}
+          - {activity_id: 2, activity_date: "2026-04-10", started_at_local: "2026-04-10 08:00:00", activity_type: running, distance_km: 10, duration_min: 50, pace_min_per_km: 5, avg_hr: 200, is_tagged_race: false}
+          - {activity_id: 3, activity_date: "2026-04-20", started_at_local: "2026-04-20 08:00:00", activity_type: running, distance_km: 10, duration_min: 50, pace_min_per_km: 5, avg_hr: 200, is_tagged_race: false}
+          - {activity_id: 4, activity_date: "2026-05-03", started_at_local: "2026-05-03 08:00:00", activity_type: running, distance_km: 21, duration_min: 90, pace_min_per_km: 4.3, avg_hr: 170, is_tagged_race: true}
+          - {activity_id: 5, activity_date: "2026-05-05", started_at_local: "2026-05-05 19:30:00", activity_type: running, distance_km: 10, duration_min: 50, pace_min_per_km: 5, avg_hr: 160, is_tagged_race: false}
+      - input: ref('fct_daily_health')
+        rows:
+          - {calendar_date: "2026-05-06", sleep_seconds: 25200, hrv_last_night_avg: 55}
+      - input: ref('stg_garmin__sleep')
+        rows:
+          - {calendar_date: "2026-05-06", sleep_started_at_local: "2026-05-05 23:20:00"}
+    expect:
+      rows:
+        - {activity_id: 1, time_of_day: morning, efficiency_vs_base: null, next_sleep_hours: null, hours_to_bedtime: null}
+        - {activity_id: 2, time_of_day: morning, efficiency_vs_base: null, next_sleep_hours: null, hours_to_bedtime: null}
+        - {activity_id: 3, time_of_day: morning, efficiency_vs_base: null, next_sleep_hours: null, hours_to_bedtime: null}
+        - {activity_id: 5, time_of_day: evening, efficiency_vs_base: 0.25, next_sleep_hours: 7.0, hours_to_bedtime: 3.0}
